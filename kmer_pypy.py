@@ -21,14 +21,10 @@ lastc[ord('g')] = lastc[ord('G')] = 0b0100
 lastc[ord('c')] = lastc[ord('C')] = 0b1000
 
 
-
-
 # count 1 of the binary number
 def nbit(n):
     x = n - ((n >>1) &033333333333) - ((n >>2) &011111111111)
     return ((x + (x >>3)) &030707070707) %63
-
-
 
 
 # convert dna kmer to number
@@ -140,7 +136,7 @@ def entry_point(argv):
         seq = i.seq
         n = len(seq)
         for k, d in seq2ns_(seq, kmer):
-            kmer_dict[k] = d
+            kmer_dict[k] |= d
                
         N += n
         if N > Ns:
