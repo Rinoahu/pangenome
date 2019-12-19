@@ -8,6 +8,13 @@ from Bio import SeqIO
 from array import array
 from _numpypy import multiarray as np
 
+# count 1 of the binary number
+def nbit(n):
+    x = n - ((n >>1) &033333333333) - ((n >>2) &011111111111)
+    return ((x + (x >>3)) &030707070707) %63
+
+
+
 
 # convert dna kmer to number
 # a:00, t:11, g:01, c:10
