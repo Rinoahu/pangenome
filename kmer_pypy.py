@@ -32,10 +32,10 @@ def nbit(n):
 #alpha = array('i', [0] * 256)
 alpha = np.zeros(256, dtype='int8')
 alpha[:] = 0b100
-alpha[ord('a')] = alpha[ord('A')] = 0b000
-alpha[ord('t')] = alpha[ord('T')] = 0b011
-alpha[ord('g')] = alpha[ord('G')] = 0b001
-alpha[ord('c')] = alpha[ord('C')] = 0b010
+alpha[ord('a')] = alpha[ord('A')] = 0b00
+alpha[ord('t')] = alpha[ord('T')] = 0b11
+alpha[ord('g')] = alpha[ord('G')] = 0b01
+alpha[ord('c')] = alpha[ord('C')] = 0b10
 
 # convert kmer to int
 # bit is the length for encode atgc to number, default is 3
@@ -75,20 +75,22 @@ def seq2ns(seq, k=12):
     return Ns
 
 
-def seq2ns_(seq, k=12):
+def seq2ns_(seq, k=12, bit=5):
     n = len(seq)
     if n < k:
         #return -1
-        yield -1, 0
+        yield -1, -1, ''
 
     Nu = k2n_(seq[:k])
     yield Nu, 0, seq[k-1]
-    shift = k*2-2
+
+    shift = bit ** (k - 1)
     for i in xrange(k, n):
         #c = alpha[ord(seq[i])]
         j = ord(seq[i])
         c = alpha[j]
-        Nu = ((Nu >> 2) | (c << shift))
+        #Nu = ((Nu >> 2) | (c << shift))
+        Nu = Nu // bit + c * shift
         yield Nu, lastc[j], seq[i]
 
 # print the manual
@@ -142,7 +144,7 @@ def entry_point(argv):
     size = int(pow(5, kmer)+1)
     print('size', size)
     #kmer_dict = array('l', [0]) * size
-    kmer_dict = np.zeros(size, dtype='int8')
+    kmer_dict = np.zeros(size, dtype='int32')
    
     #for i in xrange(size):
     #    kmer_dict[i] = i
@@ -161,14 +163,10 @@ def entry_point(argv):
             break
 
     out_deg = 0
-    flag = 0
-    for i in kmer_dict:
-        if i > 0:
+    for i in xrange(len(kmer_dict)):
+        if kmer_dict[i] > 0:
             km = n2k_(i, kmer)
-            print('%s\t%d'%(km, i))
-            #out = nbit(i)
-            #out_deg += out
-        flag += 1
+            print('%s\t%d'%(km, kmer_dict[i]))
 
     print('dct size', len(kmer_dict), 'seq', N, 'min seq', Ns, 'node with mul out degree', out_deg)
     return 0
