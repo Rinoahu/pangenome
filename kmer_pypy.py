@@ -8,6 +8,21 @@ from Bio import SeqIO
 from array import array
 from _numpypy import multiarray as np
 
+# the last char of the kmer
+# A: 0001
+# T: 0010
+# G: 0100
+# C: 1000
+# N: 0000
+lastc = np.zeros(256, dtype='int8')
+lastc[ord('a')] = lastc[ord('A')] = 0b0001
+lastc[ord('t')] = lastc[ord('T')] = 0b0010
+lastc[ord('g')] = lastc[ord('G')] = 0b0100
+lastc[ord('c')] = lastc[ord('C')] = 0b1000
+
+
+
+
 # count 1 of the binary number
 def nbit(n):
     x = n - ((n >>1) &033333333333) - ((n >>2) &011111111111)
@@ -53,16 +68,17 @@ def seq2ns_(seq, k=12):
     n = len(seq)
     if n < k:
         #return -1
-        yield -1
+        yield -1, 0
 
-    flag = k2n_(seq[:k])
-    yield flag
+    Nu = k2n_(seq[:k])
+    yield Nu, 0
     shift = k*2-2
     for i in xrange(k, n):
-        c = alpha[ord(seq[i])]
-        flag = ((flag >> 2) | (c << shift))
-        yield flag
-
+        #c = alpha[ord(seq[i])]
+        j = ord(seq[i])
+        c = alpha[j]
+        Nu = ((Nu >> 2) | (c << shift))
+        yield Nu, lastc[j]
 # print the manual
 def manual_print():
     print 'Usage:'
@@ -113,7 +129,7 @@ def entry_point(argv):
     size = int(pow(4, kmer)+1)
     print('size', size)
     #kmer_dict = array('l', [0]) * size
-    kmer_dict = np.zeros(size, dtype='int64')
+    kmer_dict = np.zeros(size, dtype='int8')
    
     #for i in xrange(size):
     #    kmer_dict[i] = i
@@ -123,8 +139,8 @@ def entry_point(argv):
     for i in SeqIO.parse(qry, 'fasta'):
         seq = i.seq
         n = len(seq)
-        for k in seq2ns_(seq, kmer):
-            kmer_dict[k] = k
+        for k, d in seq2ns_(seq, kmer):
+            kmer_dict[k] = d
                
         N += n
         if N > Ns:
