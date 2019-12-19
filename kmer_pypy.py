@@ -140,22 +140,21 @@ def entry_point(argv):
 
     qry, kmer, Ns = args['-i'], int(args['-k']), int(eval(args['-n']))
     kmer = min(max(1, kmer), 31)
-    #size = int(pow(4, kmer)+1)
-    size = int(pow(5, kmer)+1)
+    bit = 5
+    size = int(pow(bit, kmer)+1)
     print('size', size)
     #kmer_dict = array('l', [0]) * size
-    kmer_dict = np.zeros(size, dtype='int32')
+    kmer_dict = np.zeros(size, dtype='int8')
    
     #for i in xrange(size):
     #    kmer_dict[i] = i
-
     N = 0
     for i in SeqIO.parse(qry, 'fasta'):
         seq = i.seq
         n = len(seq)
         for k, d, c in seq2ns_(seq, kmer):
-            #kmer_dict[k] |= d
-            kmer_dict[k] += 1
+            kmer_dict[k] += d
+            #kmer_dict[k] += 1
             #print('%d\t%s\t%s'%(k, c, bin(kmer_dict[k])))
               
         N += n
@@ -166,9 +165,11 @@ def entry_point(argv):
     for i in xrange(len(kmer_dict)):
         if kmer_dict[i] > 0:
             km = n2k_(i, kmer)
-            print('%s\t%d'%(km, kmer_dict[i]))
+            sf = nbit(kmer_dict[i])
+            print('%s\t%d\t%d'%(km, sf, kmer_dict[i]))
+            out_deg += (sf > 1)
 
-    print('dct size', len(kmer_dict), 'seq', N, 'min seq', Ns, 'node with mul out degree', out_deg)
+    print('dct size', len(kmer_dict), 'seq', N, 'min seq', Ns, 'branch', out_deg)
     return 0
 
 
