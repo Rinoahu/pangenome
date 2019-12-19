@@ -15,9 +15,9 @@ from _numpypy import multiarray as np
 # C: 1000
 # N: 0000
 lastc = np.zeros(256, dtype='int8')
-lastc[ord('a')] = lastc[ord('A')] = 0b0001
-lastc[ord('t')] = lastc[ord('T')] = 0b0010
-lastc[ord('g')] = lastc[ord('G')] = 0b0100
+lastc[ord('a')] = lastc[ord('A')] = 0b1
+lastc[ord('t')] = lastc[ord('T')] = 0b10
+lastc[ord('g')] = lastc[ord('G')] = 0b100
 lastc[ord('c')] = lastc[ord('C')] = 0b1000
 
 
@@ -31,18 +31,33 @@ def nbit(n):
 # a:00, t:11, g:01, c:10
 #alpha = array('i', [0] * 256)
 alpha = np.zeros(256, dtype='int8')
-alpha[ord('a')] = alpha[ord('A')] = 0b00
-alpha[ord('t')] = alpha[ord('T')] = 0b11
-alpha[ord('g')] = alpha[ord('G')] = 0b01
-alpha[ord('c')] = alpha[ord('C')] = 0b10
+alpha[:] = 0b100
+alpha[ord('a')] = alpha[ord('A')] = 0b000
+alpha[ord('t')] = alpha[ord('T')] = 0b011
+alpha[ord('g')] = alpha[ord('G')] = 0b001
+alpha[ord('c')] = alpha[ord('C')] = 0b010
 
-
-def k2n_(kmer):
-    n, N = len(kmer), 0
-    for i in xrange(n):
+# convert kmer to int
+# bit is the length for encode atgc to number, default is 3
+def k2n_(kmer, bit=5):
+    N = 0
+    for i in xrange(len(kmer)):
         c = alpha[ord(kmer[i])]
-        N += (c << (i*2))
+        N += c * bit ** i
     return N
+
+
+beta = 'AGCTNNNN'
+# convert int to kmer
+# K is the length of kmer
+def n2k_(N, K=12, bit=5):
+    n, s = N, []
+    for i in xrange(K):
+        c = beta[n % bit]
+        n //= bit
+        s.append(c)
+    return ''.join(s)
+
     
 def seq2ns(seq, k=12):
     n = len(seq)
@@ -67,14 +82,15 @@ def seq2ns_(seq, k=12):
         yield -1, 0
 
     Nu = k2n_(seq[:k])
-    yield Nu, 0
+    yield Nu, 0, seq[k-1]
     shift = k*2-2
     for i in xrange(k, n):
         #c = alpha[ord(seq[i])]
         j = ord(seq[i])
         c = alpha[j]
         Nu = ((Nu >> 2) | (c << shift))
-        yield Nu, lastc[j]
+        yield Nu, lastc[j], seq[i]
+
 # print the manual
 def manual_print():
     print 'Usage:'
@@ -122,7 +138,8 @@ def entry_point(argv):
 
     qry, kmer, Ns = args['-i'], int(args['-k']), int(eval(args['-n']))
     kmer = min(max(1, kmer), 31)
-    size = int(pow(4, kmer)+1)
+    #size = int(pow(4, kmer)+1)
+    size = int(pow(5, kmer)+1)
     print('size', size)
     #kmer_dict = array('l', [0]) * size
     kmer_dict = np.zeros(size, dtype='int8')
@@ -131,17 +148,29 @@ def entry_point(argv):
     #    kmer_dict[i] = i
 
     N = 0
-
     for i in SeqIO.parse(qry, 'fasta'):
         seq = i.seq
         n = len(seq)
-        for k, d in seq2ns_(seq, kmer):
-            kmer_dict[k] |= d
-               
+        for k, d, c in seq2ns_(seq, kmer):
+            #kmer_dict[k] |= d
+            kmer_dict[k] += 1
+            #print('%d\t%s\t%s'%(k, c, bin(kmer_dict[k])))
+              
         N += n
         if N > Ns:
             break
-    print('dct size', len(kmer_dict), 'seq', N, 'min seq', Ns)
+
+    out_deg = 0
+    flag = 0
+    for i in kmer_dict:
+        if i > 0:
+            km = n2k_(i, kmer)
+            print('%s\t%d'%(km, i))
+            #out = nbit(i)
+            #out_deg += out
+        flag += 1
+
+    print('dct size', len(kmer_dict), 'seq', N, 'min seq', Ns, 'node with mul out degree', out_deg)
     return 0
 
 
