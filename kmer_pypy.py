@@ -166,7 +166,7 @@ def entry_point(argv):
         if kmer_dict[i] > 0:
             km = n2k_(i, kmer)
             sf = nbit(kmer_dict[i])
-            print('%s\t%d\t%d'%(km, sf, bin(kmer_dict[i])))
+            print('%s\t%d\t%s'%(km, sf, bin(kmer_dict[i])))
             out_deg += (sf > 1)
 
     print('dct size', len(kmer_dict), 'seq', N, 'min seq', Ns, 'branch', out_deg)
