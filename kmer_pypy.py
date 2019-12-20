@@ -19,6 +19,15 @@ lastc[ord('a')] = lastc[ord('A')] = 0b1
 lastc[ord('t')] = lastc[ord('T')] = 0b10
 lastc[ord('g')] = lastc[ord('G')] = 0b100
 lastc[ord('c')] = lastc[ord('C')] = 0b1000
+lastc[ord('n')] = lastc[ord('N')] = 0b10000
+
+lastc_r = ['0']* 0b10001
+lastc_r[0b1] = 'A'
+lastc_r[0b10] = 'T'
+lastc_r[0b100] = 'G'
+lastc_r[0b1000] = 'C'
+lastc_r[0b10000] = 'N'
+lastc_r = ''.join(lastc_r)
 
 
 # count 1 of the binary number
@@ -79,19 +88,23 @@ def seq2ns_(seq, k=12, bit=5):
     n = len(seq)
     if n < k:
         #return -1
-        yield -1, -1, ''
+        yield -1, '0'
 
     Nu = k2n_(seq[:k])
-    yield Nu, 0, seq[k-1]
+    yield Nu, seq[k]
 
     shift = bit ** (k - 1)
-    for i in xrange(k, n):
-        #c = alpha[ord(seq[i])]
-        j = ord(seq[i])
-        c = alpha[j]
-        #Nu = ((Nu >> 2) | (c << shift))
-        Nu = Nu // bit + c * shift
-        yield Nu, lastc[j], seq[i]
+    for i in xrange(k, n-1):
+        cc = alpha[ord(seq[i])]
+        Nu = Nu // bit + cc * shift
+        # find next char
+        nc = seq[i+1]
+        yield Nu, nc
+
+    cc = alpha[ord(seq[i+1])]
+    Nu = Nu // bit + cc * shift
+
+    yield Nu, '0'
 
 # print the manual
 def manual_print():
@@ -118,9 +131,18 @@ def entry_point(argv):
             continue
 
     qry, kmer, Ns = args['-i'], int(args['-k']), int(eval(args['-n']))
+    if not qry:
+        seq = 'ACCCATCGGGCTAAACCCCCCCCCCGATCGATCGAC'
+        a0 = [k2n_(seq[elem:elem+12]) for elem in xrange(len(seq)-12+1)]
+        a1 = [elem[0] for elem in seq2ns_(seq)]
+        print(a0 == a1) 
+        print(a0[-5:])
+        print(a1[-5:])
+        raise SystemExit()
+
     kmer = min(max(1, kmer), 31)
     bits = 5
-    size = int(pow(bit, kmer)+1)
+    size = int(pow(bits, kmer)+1)
     print('size', size)
     #kmer_dict = array('l', [0]) * size
     kmer_dict = np.zeros(size, dtype='int8')
@@ -129,10 +151,11 @@ def entry_point(argv):
     #    kmer_dict[i] = i
     N = 0
     for i in SeqIO.parse(qry, 'fasta'):
-        seq = i.seq
+        seq = str(i.seq)
         n = len(seq)
-        for k, d, c in seq2ns_(seq, kmer, bits):
-            kmer_dict[k] |= d
+        for k, c in seq2ns_(seq, kmer, bits):
+            d = lastc[ord(c)]
+            kmer_dict[k] += d
   
         N += n
         if N > Ns:
@@ -143,7 +166,7 @@ def entry_point(argv):
         if kmer_dict[i] > 0:
             km = n2k_(i, kmer)
             sf = nbit(kmer_dict[i])
-            print('%s\t%d\t%d'%(km, sf, kmer_dict[i]))
+            print('%s\t%d\t%d'%(km, sf, bin(kmer_dict[i])))
             out_deg += (sf > 1)
 
     print('dct size', len(kmer_dict), 'seq', N, 'min seq', Ns, 'branch', out_deg)
