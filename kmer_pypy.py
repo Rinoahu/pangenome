@@ -96,35 +96,14 @@ def seq2ns_(seq, k=12, bit=5):
 # print the manual
 def manual_print():
     print 'Usage:'
-    print '  fsearch -p blastp -i qry.fsa -d db.fsa'
+    print '  pyhton this.py -i qry.fsa -k 10 -n 1000000'
     print 'Parameters:'
-    print '  -p: program'
     print '  -i: query sequences in fasta format'
-    print '  -l: start index of query sequences'
-    print '  -u: end index of query sequences'
-    print '  -L: start index of reference'
-    print '  -U: end index of reference'
-    print '  -d: ref database'
-    print '  -D: index of ref, if this parameter is specified, only this part of formatted ref will be searched against'
-    print '  -o: output file'
-    print '  -O: write mode of output file. w: overwrite, a: append'
-    print '  -s: spaced seed in format: 1111,1110,1001.. etc'
-    print '  -r: reduced amino acid alphabet in format: AST,CFILMVY,DN,EQ,G,H,KR,P,W'
-    print '  -v: number of hits to show'
-    print '  -e: expect value'
-    print '  -m: max ratio of pseudo hits that will trigger stop'
-    print '  -j: distance between start sites of two neighbor seeds, greater will reduce the size of database'
-    print '  -t: filter high frequency kmers whose counts > t'
-    print '  -F: Filter query sequence'
-    print '  -M: bucket size of hash table, reduce this parameter will reduce memory usage but decrease sensitivity'
-    print '  -c: chunck size of reference. default is 50K which mean 50K sequences from reference will be used as database'
-    print '  -T: tmpdir to store tmp file. default ./tmpdir'
-
+    print '  -k: kmer length'
+    print '  -n: length of query sequences for dbg'
 
 def entry_point(argv):
 
-    seeds = '111111'
-    aa_nr = 'AST,CFILMVY,DN,EQ,G,H,KR,P,W'
     args = {'-i': '', '-k': '50', '-n': '1000000'}
     N = len(argv)
 
@@ -140,7 +119,7 @@ def entry_point(argv):
 
     qry, kmer, Ns = args['-i'], int(args['-k']), int(eval(args['-n']))
     kmer = min(max(1, kmer), 31)
-    bit = 5
+    bits = 5
     size = int(pow(bit, kmer)+1)
     print('size', size)
     #kmer_dict = array('l', [0]) * size
@@ -152,11 +131,9 @@ def entry_point(argv):
     for i in SeqIO.parse(qry, 'fasta'):
         seq = i.seq
         n = len(seq)
-        for k, d, c in seq2ns_(seq, kmer):
-            kmer_dict[k] += d
-            #kmer_dict[k] += 1
-            #print('%d\t%s\t%s'%(k, c, bin(kmer_dict[k])))
-              
+        for k, d, c in seq2ns_(seq, kmer, bits):
+            kmer_dict[k] |= d
+  
         N += n
         if N > Ns:
             break
