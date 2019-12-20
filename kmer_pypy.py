@@ -155,8 +155,8 @@ def entry_point(argv):
         n = len(seq)
         for k, c in seq2ns_(seq, kmer, bits):
             d = lastc[ord(c)]
-            kmer_dict[k] += d
-  
+            kmer_dict[k] |= d
+ 
         N += n
         if N > Ns:
             break
