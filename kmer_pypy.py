@@ -88,23 +88,24 @@ def seq2ns_(seq, k=12, bit=5):
     n = len(seq)
     if n < k:
         #return -1
-        yield -1, '0'
+        yield -1, '0', '0'
 
     Nu = k2n_(seq[:k])
-    yield Nu, seq[k]
+    yield Nu, '0', seq[k]
 
     shift = bit ** (k - 1)
     for i in xrange(k, n-1):
         cc = alpha[ord(seq[i])]
         Nu = Nu // bit + cc * shift
-        # find next char
+        # find head and next char
+        hd = seq[i-k]
         nc = seq[i+1]
-        yield Nu, nc
+        yield Nu, hd, nc
 
     cc = alpha[ord(seq[i+1])]
     Nu = Nu // bit + cc * shift
-
-    yield Nu, '0'
+    hd = seq[i-k]
+    yield Nu, hd, '0'
 
 # print the manual
 def manual_print():
@@ -133,8 +134,8 @@ def entry_point(argv):
     qry, kmer, Ns = args['-i'], int(args['-k']), int(eval(args['-n']))
     if not qry:
         seq = 'ACCCATCGGGCTAAACCCCCCCCCCGATCGATCGAC'
-        a0 = [k2n_(seq[elem:elem+12]) for elem in xrange(len(seq)-12+1)]
-        a1 = [elem[0] for elem in seq2ns_(seq)]
+        a0 = [(k2n_(seq[elem:elem+12]), seq[elem-1:elem], seq[elem+12:elem+13]) for elem in xrange(len(seq)-12+1)]
+        a1 = [elem[:] for elem in seq2ns_(seq)]
         print(a0 == a1) 
         print(a0[-5:])
         print(a1[-5:])
@@ -145,7 +146,7 @@ def entry_point(argv):
     size = int(pow(bits, kmer)+1)
     print('size', size)
     #kmer_dict = array('l', [0]) * size
-    kmer_dict = np.zeros(size, dtype='int8')
+    kmer_dict = np.zeros(size, dtype='int16')
    
     #for i in xrange(size):
     #    kmer_dict[i] = i
@@ -153,9 +154,10 @@ def entry_point(argv):
     for i in SeqIO.parse(qry, 'fasta'):
         seq = str(i.seq)
         n = len(seq)
-        for k, c in seq2ns_(seq, kmer, bits):
-            d = lastc[ord(c)]
-            kmer_dict[k] |= d
+        for k, hd, nt in seq2ns_(seq, kmer, bits):
+            h = lastc[ord(hd)] << 5
+            d = lastc[ord(nt)]
+            kmer_dict[k] |= (h | d) 
  
         N += n
         if N > Ns:
@@ -165,8 +167,10 @@ def entry_point(argv):
     for i in xrange(len(kmer_dict)):
         if kmer_dict[i] > 0:
             km = n2k_(i, kmer)
-            sf = nbit(kmer_dict[i])
-            print('%s\t%d\t%s'%(km, sf, bin(kmer_dict[i])))
+            hn = kmer_dict[i]
+            pr =  nbit(hn >> 5)
+            sf = nbit(hn & 0b11111)
+            print('%s\t%s\t%s'%(km, pr, sf))
             out_deg += (sf > 1)
 
     print('dct size', len(kmer_dict), 'seq', N, 'min seq', Ns, 'branch', out_deg)
