@@ -160,6 +160,7 @@ def entry_point(argv):
             kmer_dict[k] |= (h | d) 
  
         N += n
+        print('N is', N)
         if N > Ns:
             break
 
@@ -168,7 +169,7 @@ def entry_point(argv):
         if kmer_dict[i] > 0:
             km = n2k_(i, kmer)
             hn = kmer_dict[i]
-            pr =  nbit(hn >> 5)
+            pr = nbit(hn >> 5)
             sf = nbit(hn & 0b11111)
             print('%s\t%s\t%s'%(km, pr, sf))
             out_deg += (sf > 1)
