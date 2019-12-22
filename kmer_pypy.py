@@ -7,6 +7,43 @@ import sys
 from Bio import SeqIO
 from array import array
 from _numpypy import multiarray as np
+import mmap
+
+
+# memmap function for pypy
+def memmap(fn, mode='w+', shape=None, dtype='int8'):
+    if dtype == 'int8' or dtype == 'uint8':
+        stride = 1
+
+    elif dtype == 'float16' or dtype == 'int16' or dtype == 'uint16':
+        stride = 2
+
+    elif dtype == 'float32' or dtype == 'int32':
+        stride = 4
+    else:
+        stride = 8
+
+    if isinstance(shape, int):
+        L = shape
+    elif isinstance(shape, tuple): 
+        L = 1
+        for i in shape:
+            L *= i
+    else:
+        L = 0
+
+    if 'w' in mode and L > 0:
+        f = open(fn, mode)
+        f.seek(L*stride-1)
+        f.write('\x00')
+        f.seek(0)
+    else:
+        f = open(fn, mode)
+
+    #print 'L', L
+    buf = mmap.mmap(f.fileno(), L*stride, prot=mmap.ACCESS_WRITE)
+    return np.frombuffer(buf, dtype=dtype)
+
 
 # the last char of the kmer
 # A: 0001
@@ -146,7 +183,8 @@ def entry_point(argv):
     size = int(pow(bits, kmer)+1)
     print('size', size)
     #kmer_dict = array('l', [0]) * size
-    kmer_dict = np.zeros(size, dtype='int16')
+    #kmer_dict = np.zeros(size, dtype='int16')
+    kmer_dict = memmap('tmp.npy', shape=size, dtype='int16')
    
     #for i in xrange(size):
     #    kmer_dict[i] = i
@@ -154,6 +192,7 @@ def entry_point(argv):
     for i in SeqIO.parse(qry, 'fasta'):
         seq_fw = str(i.seq)
         seq_rv = str(i.reverse_complement().seq)
+        #print('seq', seq_fw[:10], seq_rv[:10])
         for seq in [seq_fw, seq_rv]:
             n = len(seq)
             for k, hd, nt in seq2ns_(seq, kmer, bits):
@@ -176,7 +215,7 @@ def entry_point(argv):
             print('%s\t%s\t%s'%(km, pr, sf))
             out_deg += (sf > 1)
 
-    print('dct size', len(kmer_dict), 'seq', N, 'min seq', Ns, 'branch', out_deg)
+    print('dct size', len(kmer_dict), 'seq', N, 'min seq', Ns, 'branch', out_deg, 'rate', out_deg*100./N)
     return 0
 
 
