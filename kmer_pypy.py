@@ -152,14 +152,16 @@ def entry_point(argv):
     #    kmer_dict[i] = i
     N = 0
     for i in SeqIO.parse(qry, 'fasta'):
-        seq = str(i.seq)
-        n = len(seq)
-        for k, hd, nt in seq2ns_(seq, kmer, bits):
-            h = lastc[ord(hd)] << 5
-            d = lastc[ord(nt)]
-            kmer_dict[k] |= (h | d) 
+        seq_fw = str(i.seq)
+        seq_rv = str(i.reverse_complement().seq)
+        for seq in [seq_fw, seq_rv]:
+            n = len(seq)
+            for k, hd, nt in seq2ns_(seq, kmer, bits):
+                h = lastc[ord(hd)] << 5
+                d = lastc[ord(nt)]
+                kmer_dict[k] |= (h | d) 
  
-        N += n
+            N += n
         print('N is', N)
         if N > Ns:
             break
