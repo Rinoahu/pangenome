@@ -206,6 +206,7 @@ def entry_point(argv):
             break
 
     out_deg = 0
+    nodes = 0
     for i in xrange(len(kmer_dict)):
         if kmer_dict[i] > 0:
             km = n2k_(i, kmer)
@@ -214,8 +215,9 @@ def entry_point(argv):
             sf = nbit(hn & 0b11111)
             print('%s\t%s\t%s'%(km, pr, sf))
             out_deg += (sf > 1)
+            nodes += 1
 
-    print('dct size', len(kmer_dict), 'seq', N, 'min seq', Ns, 'branch', out_deg, 'rate', out_deg*100./N)
+    print('dct size', len(kmer_dict), 'seq', N, 'nodes', nodes, 'branch', out_deg, 'rate', out_deg*100./N)
     return 0
 
 
