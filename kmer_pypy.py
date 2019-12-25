@@ -6,9 +6,14 @@
 import sys
 from Bio import SeqIO
 from array import array
-from _numpypy import multiarray as np
+try:
+    from _numpypy import multiarray as np
+except:
+    import numpy as np
+
 import mmap
 
+xrange = range
 
 # memmap function for pypy
 def memmap(fn, mode='w+', shape=None, dtype='int8'):
@@ -46,32 +51,41 @@ def memmap(fn, mode='w+', shape=None, dtype='int8'):
 
 
 # the last char of the kmer
-# A: 0001
-# T: 0010
-# G: 0100
+# A: 1
+# T: 10
+# G: 100
 # C: 1000
-# N: 0000
+# N: 10000
+# $: 100000
 lastc = np.zeros(256, dtype='int8')
 lastc[ord('a')] = lastc[ord('A')] = 0b1
 lastc[ord('t')] = lastc[ord('T')] = 0b10
 lastc[ord('g')] = lastc[ord('G')] = 0b100
 lastc[ord('c')] = lastc[ord('C')] = 0b1000
 lastc[ord('n')] = lastc[ord('N')] = 0b10000
+lastc[ord('$')] = 0b100000
+lastc[ord('#')] = 0b000000
 
-lastc_r = ['0']* 0b10001
+
+# reverse next character table
+lastc_r = ['#'] * 0b100001
 lastc_r[0b1] = 'A'
 lastc_r[0b10] = 'T'
 lastc_r[0b100] = 'G'
 lastc_r[0b1000] = 'C'
 lastc_r[0b10000] = 'N'
+lastc_r[0b100000] = '$'
 lastc_r = ''.join(lastc_r)
 
 
 # count 1 of the binary number
-def nbit(n):
-    x = n - ((n >>1) &033333333333) - ((n >>2) &011111111111)
-    return ((x + (x >>3)) &030707070707) %63
+#def nbit(n):
+#    x = n - ((n >> 1) & 033333333333) - ((n >> 2) & 011111111111)
+#    return ((x + (x >> 3)) & 030707070707) % 63
 
+def nbit(n):
+    x = n - ((n >> 1) & 3681400539) - ((n >> 2) & 1227133513)
+    return ((x + (x >> 3)) & 3340530119) % 63
 
 # convert dna kmer to number
 # a:00, t:11, g:01, c:10
@@ -124,11 +138,12 @@ def seq2ns(seq, k=12):
 def seq2ns_(seq, k=12, bit=5):
     n = len(seq)
     if n < k:
-        #return -1
-        yield -1, '0', '0'
+        #yield -1, '0', '0'
+        yield -1, '#', '$'
 
     Nu = k2n_(seq[:k])
-    yield Nu, '0', seq[k]
+    #yield Nu, '0', seq[k]
+    yield Nu, '#', seq[k]
 
     shift = bit ** (k - 1)
     for i in xrange(k, n-1):
@@ -142,16 +157,16 @@ def seq2ns_(seq, k=12, bit=5):
     cc = alpha[ord(seq[i+1])]
     Nu = Nu // bit + cc * shift
     hd = seq[i-k]
-    yield Nu, hd, '0'
+    yield Nu, hd, '$'
 
 # print the manual
 def manual_print():
-    print 'Usage:'
-    print '  pyhton this.py -i qry.fsa -k 10 -n 1000000'
-    print 'Parameters:'
-    print '  -i: query sequences in fasta format'
-    print '  -k: kmer length'
-    print '  -n: length of query sequences for dbg'
+    print('Usage:')
+    print('  pyhton this.py -i qry.fsa -k 10 -n 1000000')
+    print('Parameters:')
+    print('  -i: query sequences in fasta format')
+    print('  -k: kmer length')
+    print('  -n: length of query sequences for dbg')
 
 def entry_point(argv):
 
