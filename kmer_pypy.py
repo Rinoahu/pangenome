@@ -6,23 +6,24 @@
 import sys
 from Bio import SeqIO
 from array import array
+from bisect import bisect_left
+import mmap
 try:
     from _numpypy import multiarray as np
 except:
     import numpy as np
 
-import mmap
-
-xrange = range
+try:
+    xrange = xrange
+except:
+    xrange = range
 
 # memmap function for pypy
 def memmap(fn, mode='w+', shape=None, dtype='int8'):
     if dtype == 'int8' or dtype == 'uint8':
         stride = 1
-
     elif dtype == 'float16' or dtype == 'int16' or dtype == 'uint16':
         stride = 2
-
     elif dtype == 'float32' or dtype == 'int32':
         stride = 4
     else:
@@ -63,7 +64,7 @@ lastc[ord('t')] = lastc[ord('T')] = 0b10
 lastc[ord('g')] = lastc[ord('G')] = 0b100
 lastc[ord('c')] = lastc[ord('C')] = 0b1000
 lastc[ord('n')] = lastc[ord('N')] = 0b10000
-lastc[ord('$')] = 0b100000
+lastc[ord('$')] = 0b100000 # end of the sequence
 lastc[ord('#')] = 0b000000
 
 
@@ -203,6 +204,7 @@ def entry_point(argv):
    
     #for i in xrange(size):
     #    kmer_dict[i] = i
+
     N = 0
     for i in SeqIO.parse(qry, 'fasta'):
         seq_fw = str(i.seq)
@@ -220,19 +222,57 @@ def entry_point(argv):
         if N > Ns:
             break
 
+    # dbg only store the branch
+    dbg = set()
+    #dbg = []
     out_deg = 0
     nodes = 0
     for i in xrange(len(kmer_dict)):
-        if kmer_dict[i] > 0:
+        hn = kmer_dict[i]
+        #if kmer_dict[i] > 0:
+        if hn > 0:
             km = n2k_(i, kmer)
-            hn = kmer_dict[i]
+            #hn = kmer_dict[i]
             pr = nbit(hn >> 5)
             sf = nbit(hn & 0b11111)
-            print('%s\t%s\t%s'%(km, pr, sf))
+            if sf > 1 or hn == 0b100000:
+                 dbg.add(i)
+                 #dbg.append(i)
+
+            #print('%s\t%s\t%s'%(km, pr, sf))
             out_deg += (sf > 1)
             nodes += 1
 
     print('dct size', len(kmer_dict), 'seq', N, 'nodes', nodes, 'branch', out_deg, 'rate', out_deg*100./N)
+    print('dbg', len(dbg))
+    #dbg.sort()
+    #raise SystemExit()
+    N = 0
+    for i in SeqIO.parse(qry, 'fasta'):
+        seq_fw = str(i.seq)
+        path = []
+        #for seq in [seq_fw, seq_rv]:
+        for seq in [seq_fw]:
+            for k, hd, nt in seq2ns_(seq, kmer, bits):
+                #idx = bisect_left(dbg, k)
+                #print('kmer', k, idx)
+                #if 0 < idx < len(dbg) or (idx == 0 and k == dbg[0]):
+                #    path.append(idx)
+                #else:
+                #    print('not found', k)
+                #    continue
+                #path.append(k in dbg and k or -1)
+                if k in dbg:
+                    path.append(k)
+                #if k not in dbg:
+                #    print('not found', k)
+
+        print('>' + i.id)
+        print('path', len(path), 'seq', n)
+        n = len(seq)
+        N += n
+        if N > Ns:
+            break
     return 0
 
 
