@@ -160,6 +160,112 @@ def seq2ns_(seq, k=12, bit=5):
     hd = seq[i-k]
     yield Nu, hd, '$'
 
+# bisect based query
+# xs is the sorted array
+# x is the query
+def query(xs, x):
+    idx = bisect_left(xs, x)
+    return x in xs[idx:idx+1]
+
+
+# function to compress genome sequence
+def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
+    kmer = min(max(1, kmer), 31)
+    size = int(pow(bits, kmer)+1)
+    kmer_dict = memmap('tmp.npy', shape=size, dtype='int16')
+   
+    #for i in xrange(size):
+    #    kmer_dict[i] = i
+
+    N = 0
+    for i in SeqIO.parse(qry, 'fasta'):
+        seq_fw = str(i.seq)
+        seq_rv = str(i.reverse_complement().seq)
+        #print('seq', seq_fw[:10], seq_rv[:10])
+        for seq in [seq_fw, seq_rv]:
+            n = len(seq)
+            for k, hd, nt in seq2ns_(seq, kmer, bits):
+                h = lastc[ord(hd)] << 5
+                d = lastc[ord(nt)]
+                kmer_dict[k] |= (h | d) 
+ 
+            N += n
+        print('N is', N)
+        if N > Ns:
+            break
+
+    # dbg only store the branch
+    #dbg = set()
+    dbg = []
+    out_deg = 0
+    nodes = 0
+    for i in xrange(len(kmer_dict)):
+        hn = kmer_dict[i]
+        #if kmer_dict[i] > 0:
+        if hn > 0:
+            km = n2k_(i, kmer)
+            #hn = kmer_dict[i]
+            pr = nbit(hn >> 5)
+            sf = nbit(hn & 0b11111)
+            if sf > 1 or hn == 0b100000:
+                 #dbg.add(i)
+                 dbg.append(i)
+                 #print('kmer', km)
+
+            #print('%s\t%s\t%s'%(km, pr, sf))
+            out_deg += (sf > 1)
+            nodes += 1
+
+    print('dct size', len(kmer_dict), 'seq', N, 'nodes', nodes, 'branch', out_deg, 'rate', out_deg*100./N)
+    #print('dbg', len(dbg), dbg)
+    print('dbg', len(dbg))
+
+    dbg.sort()
+    #raise SystemExit()
+    N = 0
+    for i in SeqIO.parse(qry, 'fasta'):
+        seq_fw = str(i.seq)
+        path = []
+        #print('seq', seq_fw)
+        #for seq in [seq_fw, seq_rv]:
+        for seq in [seq_fw]:
+            skip = p0 = p1 = 0
+            for k, hd, nt in seq2ns_(seq, kmer, bits):
+                #idx = bisect_left(dbg, k)
+                #print('kmer', k, idx)
+                #if 0 < idx < len(dbg) or (idx == 0 and k == dbg[0]):
+                #    path.append(idx)
+                #else:
+                #    print('not found', k)
+                #    continue
+                #path.append(k in dbg and k or -1)
+                if p0 > p1:
+                    p1 += 1
+                    continue
+
+                #if k in dbg:
+                if query(dbg, k):
+                    #if p0 <= p1:
+                    #    path.append([skip, hd, k, k])
+                    #    p0 += kmer
+                    path.append([skip, hd, k, k])
+                    p0 += kmer
+                    skip = 0
+                else:
+                    #path.append([hd, k, -1])
+                    skip += 1
+                p1 += 1
+                
+        print('>' + i.id)
+        print('path', len(path), 'seq', n)
+        print(path[:10])
+        n = len(seq)
+        N += n
+        if N > Ns:
+            break
+
+
+
 # print the manual
 def manual_print():
     print('Usage:')
@@ -187,92 +293,16 @@ def entry_point(argv):
     qry, kmer, Ns = args['-i'], int(args['-k']), int(eval(args['-n']))
     if not qry:
         seq = 'ACCCATCGGGCTAAACCCCCCCCCCGATCGATCGAC'
-        a0 = [(k2n_(seq[elem:elem+12]), seq[elem-1:elem], seq[elem+12:elem+13]) for elem in xrange(len(seq)-12+1)]
-        a1 = [elem[:] for elem in seq2ns_(seq)]
+        seq = 'AAAAAAAAAAGAAAAAAAAAATAAAAAAAAAACAAAAAAAAAA'
+        kmer = 5
+        a0 = [(k2n_(seq[elem:elem+kmer]), seq[elem-1:elem], seq[elem+kmer:elem+kmer+1]) for elem in xrange(len(seq)-kmer+1)]
+        a1 = [elem[:] for elem in seq2ns_(seq, kmer)]
         print(a0 == a1) 
-        print(a0[-5:])
-        print(a1[-5:])
+        print(a0[-105:])
+        print(a1[-105:])
         raise SystemExit()
 
-    kmer = min(max(1, kmer), 31)
-    bits = 5
-    size = int(pow(bits, kmer)+1)
-    print('size', size)
-    #kmer_dict = array('l', [0]) * size
-    #kmer_dict = np.zeros(size, dtype='int16')
-    kmer_dict = memmap('tmp.npy', shape=size, dtype='int16')
-   
-    #for i in xrange(size):
-    #    kmer_dict[i] = i
-
-    N = 0
-    for i in SeqIO.parse(qry, 'fasta'):
-        seq_fw = str(i.seq)
-        seq_rv = str(i.reverse_complement().seq)
-        #print('seq', seq_fw[:10], seq_rv[:10])
-        for seq in [seq_fw, seq_rv]:
-            n = len(seq)
-            for k, hd, nt in seq2ns_(seq, kmer, bits):
-                h = lastc[ord(hd)] << 5
-                d = lastc[ord(nt)]
-                kmer_dict[k] |= (h | d) 
- 
-            N += n
-        print('N is', N)
-        if N > Ns:
-            break
-
-    # dbg only store the branch
-    dbg = set()
-    #dbg = []
-    out_deg = 0
-    nodes = 0
-    for i in xrange(len(kmer_dict)):
-        hn = kmer_dict[i]
-        #if kmer_dict[i] > 0:
-        if hn > 0:
-            km = n2k_(i, kmer)
-            #hn = kmer_dict[i]
-            pr = nbit(hn >> 5)
-            sf = nbit(hn & 0b11111)
-            if sf > 1 or hn == 0b100000:
-                 dbg.add(i)
-                 #dbg.append(i)
-
-            #print('%s\t%s\t%s'%(km, pr, sf))
-            out_deg += (sf > 1)
-            nodes += 1
-
-    print('dct size', len(kmer_dict), 'seq', N, 'nodes', nodes, 'branch', out_deg, 'rate', out_deg*100./N)
-    print('dbg', len(dbg))
-    #dbg.sort()
-    #raise SystemExit()
-    N = 0
-    for i in SeqIO.parse(qry, 'fasta'):
-        seq_fw = str(i.seq)
-        path = []
-        #for seq in [seq_fw, seq_rv]:
-        for seq in [seq_fw]:
-            for k, hd, nt in seq2ns_(seq, kmer, bits):
-                #idx = bisect_left(dbg, k)
-                #print('kmer', k, idx)
-                #if 0 < idx < len(dbg) or (idx == 0 and k == dbg[0]):
-                #    path.append(idx)
-                #else:
-                #    print('not found', k)
-                #    continue
-                #path.append(k in dbg and k or -1)
-                if k in dbg:
-                    path.append(k)
-                #if k not in dbg:
-                #    print('not found', k)
-
-        print('>' + i.id)
-        print('path', len(path), 'seq', n)
-        n = len(seq)
-        N += n
-        if N > Ns:
-            break
+    seq2dbg(qry, kmer, 5, Ns)
     return 0
 
 
