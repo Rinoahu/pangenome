@@ -8,10 +8,12 @@ from Bio import SeqIO
 from array import array
 from bisect import bisect_left
 import mmap
+import networkx as nx
 try:
     from _numpypy import multiarray as np
 except:
     import numpy as np
+
 
 try:
     xrange = xrange
@@ -196,6 +198,8 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
 
     # dbg only store the branch
     #dbg = set()
+    Graph = nx.DiGraph()
+
     dbg = []
     out_deg = 0
     nodes = 0
@@ -255,7 +259,12 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
                     #path.append([hd, k, -1])
                     skip += 1
                 p1 += 1
-                
+ 
+        for ii in xrange(len(path)-1):
+            n0, n1 = path[ii:ii+2]
+            #Graph.add_edge(n0[2], n1[2])
+            print('edge\t%d\t%d'%(n0[2], n1[2]))
+
         print('>' + i.id)
         print('path', len(path), 'seq', n)
         print(path[:10])
@@ -263,8 +272,9 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
         N += n
         if N > Ns:
             break
-
-
+    print('Graph size', Graph.size(), 'edge', len(Graph.edges()), 'node', len(Graph.nodes()))
+    #for n0, n1 in Graph.edges():
+    #    print('edge\t%d\t%d'%(n0, n1))
 
 # print the manual
 def manual_print():
