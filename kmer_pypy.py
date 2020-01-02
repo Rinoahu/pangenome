@@ -7,6 +7,7 @@ import sys
 from Bio import SeqIO
 from array import array
 from bisect import bisect_left
+import math
 import mmap
 import networkx as nx
 try:
@@ -14,11 +15,288 @@ try:
 except:
     import numpy as np
 
-
 try:
     xrange = xrange
 except:
     xrange = range
+
+
+# blist in pure python
+rng = lambda x: (((x * 279470273) % 4294967291) * 279470273) % 4294967291
+# this is blist data structure
+class Node:
+    def __init__(self, size = 0, left = [], right = [], next = None):
+        self.size = size
+        self.left = left
+        self.right = right
+        self.next = next
+
+class leaf:
+    def __init__(self, vals = []):
+        self.vals = vals
+        self.size = len(self.vals)
+
+class Blist:
+
+    def __init__(self, chunk = 2 ** 10):
+        self.root = Node(0, [], [], None)
+        self.full = chunk
+        self.double = self.full * 2
+        self.half = self.full // 2
+        self.quarter = self.full // 4
+
+    # get the size or rank of child
+    def l_size(self, node):
+        return isinstance(node.left, Node) and node.left.size or len(node.left)
+
+    def r_size(self, node):
+        return isinstance(node.right, Node) and node.right.size or len(node.right)
+
+    def calc_size(self, node):
+        return self.l_size(node) + self.r_size(node)
+
+    # give the key and locate the node
+    def locate(self, x):
+        node = self.root
+        idx = x
+        visit = []
+        while isinstance(node, Node):
+            l_size = self.l_size(node)
+            if idx < l_size:
+#           if idx < l_size or idx == l_size == 0:
+                pred_node = node
+                pred = 'left'
+#               node = node.left
+                node = pred_node.left
+            else:
+                idx -= l_size
+                pred_node = node
+                pred = 'right'
+                node = pred_node.right
+
+            visit.append((pred_node, pred))
+
+#       print 'depth is', len(visit)
+        return visit, idx
+
+    # rotation
+    #      a     b
+    #     / \       / \
+    #    b   c <=> d   a
+    #   / \       / \
+    #  d   e     e   c
+    def rotate_right(self, a):
+        b = a.left
+        if isinstance(b, Node):
+            e = b.right
+            a.left = e
+            b.right = a
+            a.size = self.calc_size(a)
+            b.size = self.calc_size(b)
+
+            return b
+        else:
+            return a
+
+    def rotate_left(self, b):
+        a = b.right
+        if isinstance(a, Node):
+            e = a.left
+            b.right = e
+            a.left = b
+            b.size = self.calc_size(b)
+            a.size = self.calc_size(a)
+
+            return a
+        else:
+            return b
+
+    # split the node
+    #    a        a
+    #   / \  ->  / \
+    # [x] [y]  [x]  c
+    #          / \
+    #     [:y/2] [y/2:]
+    def split(self, y):
+        N = len(y)
+        if N > self.full:
+            M = N // 2
+            c = Node(N, y[: M], y[M: ], None)
+            return c
+        else:
+            return y
+
+    # split the node
+    #    a         a
+    #   / \       / \
+    # [z]  c -> [z] [x,y]
+    #     / \
+    #   [x] [y]
+    def merge(self, c):
+        a, b = self.l_size(c), self.r_size(c)
+#       a, b = c.left, c.right
+        if (a < self.quarter and b < self.quarter) or a + b < self.half:
+#       if len(a) < self.quarter and len(b) < self.quarter or len(a) + len(b) < self.half:
+#           a.extend(b)
+#           return a
+#           c.left.extend(c.right)
+#           return c.left
+            return c.left + c.right
+        else:
+            return c
+
+    # make the node balance
+    def blance(self, x):
+        if isinstance(x, list):
+            return x
+        else:
+            # treap like algorithm
+#           a  = rng(self.l_size(x))
+#           if a < 1431655763:
+#               return self.rotate_left(x)
+#           elif a > 2863311526:
+#               return self.rotate_right(x)
+#           else:
+#               return x
+
+            # the b-btree algorithm
+            d = self.l_size(x) - self.r_size(x)
+            if abs(d) < self.double:
+                return x
+            elif d < 0:
+                return self.rotate_left(x)
+            else:
+                return self.rotate_right(x)
+
+    def insert(self, x, y):
+        visit, idx = self.locate(x)
+        pre_node, pre_pred = visit.pop()
+        if pre_pred is 'left':
+            vals = pre_node.left
+        else:
+            vals = pre_node.right
+
+        # insert the value to list
+        vals.insert(idx, y)
+        # split the list if necessary
+        split_node = self.split(vals)
+
+        if pre_pred is 'left':
+            pre_node.left = split_node
+        else:
+            pre_node.right = split_node
+
+#       pre_node.size = self.calc_size(pre_node)
+        pre_node.size += 1
+        # do the rotate if necessary
+        while visit:
+            new_node, new_pred = visit.pop()
+            if new_pred is 'left':
+                new_node.left = self.blance(pre_node)
+            else:
+                new_node.right = self.blance(pre_node)
+#           new_node.size = self.calc_size(new_node)
+            new_node.size += 1
+            pre_node  = new_node
+
+    # common features in blist, most are the same as in list
+    def __len__(self):
+        return self.root.size
+
+    def size(self):
+        visit = [self.root]
+        flag = 0
+        while visit:
+#           print 'adding'
+            node = visit.pop()
+            if isinstance(node, Node):
+#               print 'test', flag
+                flag += 1
+            if isinstance(node.left, Node):
+                visit.append(node.left)
+            if isinstance(node.right, Node):
+                visit.append(node.right)
+        return flag
+
+    def __setitem__(self, x, y):
+        if x < 0:
+#           x += self.root.size
+            x += self.__len__()
+        visit, idx = self.locate(x)
+        pre_node, pre_pred = visit.pop()
+        if pre_pred is 'left':
+            pre_node.left[idx] = y
+        else:
+            pre_node.right[idx] = y
+
+    def __getitem__(self, x):
+        if x < 0:
+#           x += self.root.size
+            x += self.__len__()
+        visit, idx = self.locate(x)
+        pre_node, pre_pred = visit.pop()
+        if pre_pred is 'left':
+            return pre_node.left[idx]
+        else:
+            return pre_node.right[idx]
+
+    def __getslice__(self, x, y):
+        if x < 0:
+#           x += self.root.size
+            x += self.__len__()
+        if y < 0:
+#           y += self.root.size
+            y += self.__len__()
+#       return [self[elem] for elem in xrange(x, y) if elem < self.__len__()]
+        return [self[elem] for elem in xrange(x, min(y, self.__len__()))]
+
+    # the slice method, same as list
+    def __setslice__(self, x, y, z):
+        for i, j in zip(xrange(x, y), z):
+            self[i] = j
+    # the append method, add elem to the last
+    def append(self, x):
+        self.insert(self.__len__(), x)
+
+    # the extend methd, add elems to the last
+    def extend(self, x):
+        for i in x:
+            self.append(i)
+
+    def __delitem__(self, x):
+        if x < 0:
+            x += self.root.size
+
+        visit, idx = self.locate(x)
+        pre_node, pre_pred = visit.pop()
+        if pre_pred is 'left':
+            vals = pre_node.left
+        else:
+            vals = pre_node.right
+
+        # del the value from list
+        del vals[idx]
+#       pre_node.size = self.calc_size(pre_node)
+        pre_node.size -= 1
+        if visit:
+            pre_node = self.merge(pre_node)
+        # do the rotate if necessary
+        while visit:
+            new_node, new_pred = visit.pop()
+            if new_pred is 'left':
+                new_node.left = self.blance(pre_node)
+            else:
+                new_node.right = self.blance(pre_node)
+#           new_node.size = self.calc_size(new_node)
+            new_node.size -= 1
+            pre_node  = new_node
+
+    def __str__(self):
+        print str(self[:])
+
+    def __repr__(self):
+        return str(self[:])
+
 
 # memmap function for pypy
 def memmap(fn, mode='w+', shape=None, dtype='int8'):
@@ -53,6 +331,21 @@ def memmap(fn, mode='w+', shape=None, dtype='int8'):
     return np.frombuffer(buf, dtype=dtype)
 
 
+# open addressing hash
+class ht:
+    pass    
+
+
+# count 1 of the binary number
+#def nbit(n):
+#    x = n - ((n >> 1) & 033333333333) - ((n >> 2) & 011111111111)
+#    return ((x + (x >> 3)) & 030707070707) % 63
+
+def nbit(n):
+    x = n - ((n >> 1) & 3681400539) - ((n >> 2) & 1227133513)
+    return ((x + (x >> 3)) & 3340530119) % 63
+
+
 # the last char of the kmer
 # A: 1
 # T: 10
@@ -69,6 +362,11 @@ lastc[ord('n')] = lastc[ord('N')] = 0b10000
 lastc[ord('$')] = 0b100000 # end of the sequence
 lastc[ord('#')] = 0b000000
 
+offbit = int(math.log(max(lastc), 2)) + 1
+#print('offbit', offbit, bin(max(lastc)))
+lowbit = int('0b' + '1'* offbit, 2)
+#offbit = 6
+print('offbit', offbit, 'low bin', bin(lowbit))
 
 # reverse next character table
 lastc_r = ['#'] * 0b100001
@@ -80,15 +378,6 @@ lastc_r[0b10000] = 'N'
 lastc_r[0b100000] = '$'
 lastc_r = ''.join(lastc_r)
 
-
-# count 1 of the binary number
-#def nbit(n):
-#    x = n - ((n >> 1) & 033333333333) - ((n >> 2) & 011111111111)
-#    return ((x + (x >> 3)) & 030707070707) % 63
-
-def nbit(n):
-    x = n - ((n >> 1) & 3681400539) - ((n >> 2) & 1227133513)
-    return ((x + (x >> 3)) & 3340530119) % 63
 
 # convert dna kmer to number
 # a:00, t:11, g:01, c:10
@@ -169,7 +458,6 @@ def query(xs, x):
     idx = bisect_left(xs, x)
     return x in xs[idx:idx+1]
 
-
 # function to compress genome sequence
 def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
     kmer = min(max(1, kmer), 31)
@@ -187,7 +475,11 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
         for seq in [seq_fw, seq_rv]:
             n = len(seq)
             for k, hd, nt in seq2ns_(seq, kmer, bits):
-                h = lastc[ord(hd)] << 5
+                #km = n2k_(k, kmer)
+                #if km =='CCCC':
+                #    print(km, hd, nt)
+
+                h = lastc[ord(hd)] << offbit
                 d = lastc[ord(nt)]
                 kmer_dict[k] |= (h | d) 
  
@@ -209,12 +501,20 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
         if hn > 0:
             km = n2k_(i, kmer)
             #hn = kmer_dict[i]
-            pr = nbit(hn >> 5)
-            sf = nbit(hn & 0b11111)
-            if sf > 1 or hn == 0b100000:
-                 #dbg.add(i)
-                 dbg.append(i)
-                 #print('kmer', km)
+            pr = nbit(hn >> offbit)
+            sf = nbit(hn & lowbit)
+
+            #if km == 'CCCC':
+            #    print('kmer raw', km, bin(hn))
+
+            if pr == sf == 1 and sf != 0b100000:
+                #dbg.add(i)
+                #dbg.append(i)
+                #print('kmer', km, sf)
+                pass
+            else:
+                dbg.append(i)
+                #print('kmer', km, sf)
 
             #print('%s\t%s\t%s'%(km, pr, sf))
             out_deg += (sf > 1)
@@ -223,6 +523,7 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
     print('dct size', len(kmer_dict), 'seq', N, 'nodes', nodes, 'branch', out_deg, 'rate', out_deg*100./N)
     #print('dbg', len(dbg), dbg)
     print('dbg', len(dbg))
+    print('dbg', [n2k_(elem, kmer) for elem in dbg[:10]])
 
     dbg.sort()
     #raise SystemExit()
@@ -252,8 +553,8 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
                     #if p0 <= p1:
                     #    path.append([skip, hd, k, k])
                     #    p0 += kmer
-                    path.append([skip, hd, k, k])
-                    p0 += kmer
+                    path.append(['p0', p0, 'p1', p1, 'skip', skip, hd, k, k, n2k_(k, K=kmer)])
+                    p0 += kmer + skip
                     skip = 0
                 else:
                     #path.append([hd, k, -1])
@@ -263,11 +564,12 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
         for ii in xrange(len(path)-1):
             n0, n1 = path[ii:ii+2]
             #Graph.add_edge(n0[2], n1[2])
-            print('edge\t%d\t%d'%(n0[2], n1[2]))
+            #print('edge\t%d\t%d'%(n0[2], n1[2]))
 
         print('>' + i.id)
+        #print(i.seq)
         print('path', len(path), 'seq', n)
-        print(path[:10])
+        print(path[:])
         n = len(seq)
         N += n
         if N > Ns:
@@ -303,8 +605,9 @@ def entry_point(argv):
     qry, kmer, Ns = args['-i'], int(args['-k']), int(eval(args['-n']))
     if not qry:
         seq = 'ACCCATCGGGCTAAACCCCCCCCCCGATCGATCGAC'
-        seq = 'AAAAAAAAAAGAAAAAAAAAATAAAAAAAAAACAAAAAAAAAA'
-        kmer = 5
+        #seq = 'AAAAAAAAAAGAAAAAAAAAATAAAAAAAAAACAAAAAAAAAA'
+        seq = 'AAAACCCCAATACCCCATAACCCC'
+        kmer = 4
         a0 = [(k2n_(seq[elem:elem+kmer]), seq[elem-1:elem], seq[elem+kmer:elem+kmer+1]) for elem in xrange(len(seq)-kmer+1)]
         a1 = [elem[:] for elem in seq2ns_(seq, kmer)]
         print(a0 == a1) 
