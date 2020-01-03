@@ -393,6 +393,7 @@ class ht:
         # if too many elements
         if self.size * 1. / self.capacity > self.load:
             self.resize()
+            print('resize')
 
     def __getitem__(self, key):
         j = self.pointer(key)
@@ -405,7 +406,7 @@ class ht:
     def __delitem__(self, key):
         j = self.pointer(key)
         if key == self.keys[j]:
-            self.keys[j] = null
+            self.keys[j] = self.null
             self.size -= 1
         else:
             raise KeyError
@@ -414,6 +415,11 @@ class ht:
         j = self.pointer(key)
         return key == self.keys[j] and True or False
 
+    def __iter__(self):
+        null = self.null
+        for i in self.keys:
+            if i != null:
+                yield i
 
 # count 1 of the binary number
 #def nbit(n):
