@@ -356,7 +356,7 @@ def memmap(fn, mode='w+', shape=None, dtype='int8'):
 
     #print 'L', L
     buf = mmap.mmap(f.fileno(), L*stride, prot=mmap.ACCESS_WRITE)
-    return np.frombuffer(buf, dtype=dtype)
+    return np.frombuffer(buf, dtype=dtype), f
 
 primes = [4611686018427388039, 2305843009213693967, 1152921504606847009, 576460752303423619,
         288230376151711813, 144115188075855881, 72057594037928017, 36028797018963971, 18014398509482143, 
@@ -369,7 +369,7 @@ primes = [4611686018427388039, 2305843009213693967, 1152921504606847009, 5764607
 #print('primes', primes)
 # open addressing hash table for kmer count
 class oaht:
-    def __init__(self, capacity=1024, load_factor = .6666667, key_type='uint64', val_type='uint16', disk=False):
+    def __init__(self, capacity=1024, load_factor = .6666667, key_type='uint64', val_type='uint16', disk=True):
 
         self.primes = [elem for elem in primes if elem > capacity]
         #self.primes = [elem for elem in primes if elem > capacity]
@@ -385,9 +385,9 @@ class oaht:
         N = self.capacity
 
         # enable disk based hash
-        if disk:
-            self.keys = memmap('tmp_key.npy', shape=N, dtype=key_type)
-            self.values = memmap('tmp_val.npy', shape=N, dtype=val_type)
+        if self.disk:
+            self.keys, self.fk = memmap('tmp_key.npy', shape=N, dtype=key_type)
+            self.values, self.fv = memmap('tmp_val.npy', shape=N, dtype=val_type)
         else:
             self.keys = np.empty(N, dtype=key_type)
             self.values = np.empty(N, dtype=val_type)
@@ -401,8 +401,8 @@ class oaht:
         M = self.primes.pop()
         null = self.null
         if self.disk:
-            keys = memmap('tmp_key0.npy', shape=M, dtype=self.ktype)
-            values = memmap('tmp_val0.npy', shape=M, dtype=self.vtype)
+            keys, fv = memmap('tmp_key0.npy', shape=M, dtype=self.ktype)
+            values, fk = memmap('tmp_val0.npy', shape=M, dtype=self.vtype)
         else:
             keys = np.empty(M, dtype=self.ktype)
             values = np.empty(M, dtype=self.vtype)
@@ -425,12 +425,19 @@ class oaht:
                 values[j] = value
             else:
                 continue
-        # change name
-        os.system('mv tmp_key0.npy tmp_key.npy && mv tmp_val0.npy tmp_val.npy')
-        #self.keys = keys
-        self.keys = memmap('tmp_key.npy', shape=M, dtype=self.ktype)
-        #self.values = values
-        self.values = memmap('tmp_val.npy', shape=M, dtype=self.vtype)
+
+        if self.disk:
+            # change name
+            self.fk.close()
+            self.fv.close()
+            os.system('mv tmp_key0.npy tmp_key.npy && mv tmp_val0.npy tmp_val.npy')
+            fk.close()
+            fv.close()
+            self.keys, self.fk = memmap('tmp_key.npy', 'a+', shape=M, dtype=self.ktype)
+            self.values, self.fv = memmap('tmp_val.npy', 'a+', shape=M, dtype=self.vtype)
+        else:
+            self.keys = keys
+            self.values = values
 
         gc.collect()
 
