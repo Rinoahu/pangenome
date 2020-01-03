@@ -1,0 +1,92 @@
+('offbit', 6, 'low bin', '0b111111')
+('len', 43, 'kmer', 27)
+('wocao', 1430511484375000, 43, 27)
+('wocao', 286102296875000, 43, 27)
+('wocao', 57220459375000, 43, 27)
+('wocao', 11444091875000, 43, 27)
+('wocao', 2288818375000, 43, 27)
+('wocao', 457763675000, 43, 27)
+('wocao', 2980232330322266250, 43, 27)
+('wocao', 596046466064453250, 43, 27)
+('wocao', 119209293212890650, 43, 27)
+('wocao', 23841858642578130, 43, 27)
+('wocao', 4768371728515626, 43, 27)
+('wocao', 953674345703125, 43, 27)
+('wocao', 190734869140625, 43, 27)
+('wocao', 38146973828125, 43, 27)
+('wocao', 7629394765625, 43, 27)
+('wocao', 1525878953125, 43, 27)
+('wocao', 305175790625, 43, 27)
+('len', 43, 'kmer', 27)
+('wocao', 5586504936198730468, 43, 27)
+('wocao', 5587649345394042968, 43, 27)
+('wocao', 5587878227233105468, 43, 27)
+('wocao', 5587924003600917968, 43, 27)
+('wocao', 5587933158874480468, 43, 27)
+('wocao', 5587934989929192968, 43, 27)
+('wocao', 4097819236755369843, 43, 27)
+('wocao', 5289912205505370843, 43, 27)
+('wocao', 5528330799255371043, 43, 27)
+('wocao', 5576014518005371083, 43, 27)
+('wocao', 5585551261755371091, 43, 27)
+('wocao', 5587458610505371093, 43, 27)
+('wocao', 5587840080255371093, 43, 27)
+('wocao', 5587916374205371093, 43, 27)
+('wocao', 5587931632995371093, 43, 27)
+('wocao', 5587934684753371093, 43, 27)
+('wocao', 5587935295104971093, 43, 27)
+('N is', 86)
+('wocao', -1, 24, 27)
+('wocao', -1, 24, 27)
+('N is', 134)
+('dct size', 36, 'seq', 134, 'nodes', 34, 'branch', 0, 'rate', 0.0)
+('dbg', 2)
+('dbg', ['TTTTTTTTTTGTTTTTTTTTTATTTTT', 'AAAAAAAAAAGAAAAAAAAAATAAAAA'])
+('len', 43, 'kmer', 27)
+('wocao len', 43, 'kmer', 27)
+('wocao len', 43, 'kmer', 27)
+('wocao len', 43, 'kmer', 27)
+('wocao len', 43, 'kmer', 27)
+('wocao len', 43, 'kmer', 27)
+('wocao len', 43, 'kmer', 27)
+('wocao len', 43, 'kmer', 27)
+('wocao len', 43, 'kmer', 27)
+('wocao len', 43, 'kmer', 27)
+('wocao len', 43, 'kmer', 27)
+('wocao len', 43, 'kmer', 27)
+('wocao len', 43, 'kmer', 27)
+('wocao len', 43, 'kmer', 27)
+('wocao len', 43, 'kmer', 27)
+('wocao len', 43, 'kmer', 27)
+('wocao len', 43, 'kmer', 27)
+('wocao len', 43, 'kmer', 27)
+>1
+[['p0', 0, 'p1', 0, 'skip', 0, '#', 1430511484375000, 1430511484375000, 'AAAAAAAAAAGAAAAAAAAAATAAAAA']]
+('path', 1, 'seq', 43, 43)
+>2
+[]
+('path', 0, 'seq', 24, 24)
+('Graph size', 0, 'edge', 0, 'node', 0)
+	Command being timed: "/home/xiaohu/gnu_tools/pypy/bin/pypy ../kmer_pypy.py -i test.fsa -k 27 -n 5e7"
+	User time (seconds): 0.68
+	System time (seconds): 0.06
+	Percent of CPU this job got: 99%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:00.75
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 121376
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 22906
+	Voluntary context switches: 9
+	Involuntary context switches: 770
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 8
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

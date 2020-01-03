@@ -514,8 +514,7 @@ def seq2ns(seq, k=12):
 
     return Ns
 
-
-def seq2ns_(seq, k=12, bit=5):
+def seq2ns_0(seq, k=12, bit=5):
     n = len(seq)
     if n < k:
         #yield -1, '0', '0'
@@ -523,6 +522,7 @@ def seq2ns_(seq, k=12, bit=5):
 
     Nu = k2n_(seq[:k])
     #yield Nu, '0', seq[k]
+    print('len', n, 'kmer', k)
     yield Nu, '#', seq[k]
 
     shift = bit ** (k - 1)
@@ -538,6 +538,35 @@ def seq2ns_(seq, k=12, bit=5):
     Nu = Nu // bit + cc * shift
     hd = seq[i-k]
     yield Nu, hd, '$'
+
+
+def seq2ns_(seq, k=12, bit=5):
+    n = len(seq)
+    if n > k:
+        Nu = k2n_(seq[:k])
+        #yield Nu, '0', seq[k]
+        print('len', n, 'kmer', k)
+        yield Nu, '#', seq[k]
+
+        shift = bit ** (k - 1)
+        for i in xrange(k, n-1):
+            cc = alpha[ord(seq[i])]
+            Nu = Nu // bit + cc * shift
+            # find head and next char
+            hd = seq[i-k]
+            nc = seq[i+1]
+            yield Nu, hd, nc
+
+        cc = alpha[ord(seq[i+1])]
+        Nu = Nu // bit + cc * shift
+        hd = seq[i-k]
+        yield Nu, hd, '$'
+
+    elif n == k:
+        #yield -1, '0', '0'
+        yield k2n_(seq), '#', '$'
+    else:
+        yield -1, '#', '$'
 
 # bisect based query
 # xs is the sorted array
@@ -564,6 +593,8 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
         for seq in [seq_fw, seq_rv]:
             n = len(seq)
             for k, hd, nt in seq2ns_(seq, kmer, bits):
+                #if k == -1:
+                #    continue
                 #km = n2k_(k, kmer)
                 #if km =='CCCC':
                 #    print(km, hd, nt)
@@ -574,9 +605,7 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
                     kmer_dict[k] |= (h | d) 
                 except:
                     kmer_dict[k] = (h | d)
-                #if k == 23:
-                #    print('wocao', k, kmer_dict[k])
- 
+
             N += n
         print('N is', N)
         if N > Ns:
@@ -638,6 +667,8 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
         for seq in [seq_fw]:
             skip = p0 = p1 = 0
             for k, hd, nt in seq2ns_(seq, kmer, bits):
+                if k == -1:
+                    continue
                 #idx = bisect_left(dbg, k)
                 #print('kmer', k, idx)
                 #if 0 < idx < len(dbg) or (idx == 0 and k == dbg[0]):
@@ -670,9 +701,9 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
 
         print('>' + i.id)
         #print(i.seq)
-        print('path', len(path), 'seq', n)
         print(path[:40])
-        n = len(seq)
+        n = len(seq_fw)
+        print('path', len(path), 'seq', len(seq_fw), n)
         N += n
         if N > Ns:
             break

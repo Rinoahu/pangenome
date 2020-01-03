@@ -6,7 +6,7 @@ pypy=/home/xiaohu/gnu_tools/pypy/bin/pypy
 #seq=pan_genome.fsa
 seq=test.fsa
 
-$tstime $pypy ../pangenome/kmer_pypy.py -i $seq -k 27 -n 5e7 &> log.txt
+$tstime $pypy ../kmer_pypy.py -i $seq -k 27 -n 5e7 &> log.txt
 
 exit 0
 
