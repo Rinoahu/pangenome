@@ -692,7 +692,7 @@ def manual_print():
 
 def entry_point(argv):
 
-    args = {'-I': '', '-k': '50', '-n': '1000000'}
+    args = {'-i': '', '-k': '50', '-n': '1000000'}
     N = len(argv)
 
     for i in xrange(1, N):
@@ -705,7 +705,7 @@ def entry_point(argv):
         else:
             continue
 
-    qry, kmer, Ns = args['-I'], int(args['-k']), int(eval(args['-n']))
+    qry, kmer, Ns = args['-i'], int(args['-k']), int(eval(args['-n']))
     if not qry:
         seq = 'ACCCATCGGGCTAAACCCCCCCCCCGATCGATCGAC'
         #seq = 'AAAAAAAAAAGAAAAAAAAAATAAAAAAAAAACAAAAAAAAAA'
@@ -719,8 +719,8 @@ def entry_point(argv):
         raise SystemExit()
 
     dct = seq2dbg(qry, kmer, 5, Ns)
-    #return 0
-    return dct
+    return 0
+    #return dct
 
 
 def target(*args):
@@ -728,4 +728,4 @@ def target(*args):
 
 if __name__ == "__main__":
 
-    dct = entry_point(sys.argv)
+    entry_point(sys.argv)
