@@ -426,9 +426,11 @@ class oaht:
 
     def __setitem__(self, key, value):
         j = self.pointer(key)
-        self.keys[j] = key
+        if self.keys[j] == self.null:
+            self.size += 1
+            self.keys[j] = key
+
         self.values[j] = value
-        self.size += 1
         # if too many elements
         if self.size * 1. / self.capacity > self.load:
             self.resize()
