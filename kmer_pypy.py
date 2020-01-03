@@ -10,6 +10,7 @@ import math
 import mmap
 import networkx as nx
 import gc
+import os
 try:
     from _numpypy import multiarray as np
 except:
