@@ -369,7 +369,7 @@ primes = [4611686018427388039, 2305843009213693967, 1152921504606847009, 5764607
 #print('primes', primes)
 # open addressing hash table for kmer count
 class oaht:
-    def __init__(self, capacity=1024, load_factor = .6666667, key_type='uint64', val_type='uint16'):
+    def __init__(self, capacity=1024, load_factor = .6666667, key_type='uint64', val_type='uint16', disk=False):
 
         self.primes = [elem for elem in primes if elem > capacity]
         #self.primes = [elem for elem in primes if elem > capacity]
@@ -380,13 +380,19 @@ class oaht:
         self.null = 2**64-1
         self.ktype = key_type
         self.vtype = val_type
+        self.disk = disk
         # for big, my own mmap based array can be used
         N = self.capacity
-        #self.keys = np.empty(N, dtype=key_type)
-        self.keys = memmap('tmp_key.npy', shape=N, dtype=key_type)
+
+        # enable disk based hash
+        if disk:
+            self.keys = memmap('tmp_key.npy', shape=N, dtype=key_type)
+            self.values = memmap('tmp_val.npy', shape=N, dtype=val_type)
+        else:
+            self.keys = np.empty(N, dtype=key_type)
+            self.values = np.empty(N, dtype=val_type)
+
         self.keys[:] = self.null
-        #self.values = np.empty(N, dtype=val_type)
-        self.values = memmap('tmp_val.npy', shape=N, dtype=val_type)
 
 
     def resize(self):
@@ -394,11 +400,14 @@ class oaht:
         #M = N * 2
         M = self.primes.pop()
         null = self.null
-        #keys = np.empty(M, dtype='uint64')
-        keys = memmap('tmp_key0.npy', shape=M, dtype=self.ktype)
+        if self.disk:
+            keys = memmap('tmp_key0.npy', shape=M, dtype=self.ktype)
+            values = memmap('tmp_val0.npy', shape=M, dtype=self.vtype)
+        else:
+            keys = np.empty(M, dtype=self.ktype)
+            values = np.empty(M, dtype=self.vtype)
+
         keys[:] = null
-        #values = np.empty(M, dtype='uint16')
-        values = memmap('tmp_val0.npy', shape=M, dtype=self.vtype)
         self.capacity = M
 
         # re-hash
