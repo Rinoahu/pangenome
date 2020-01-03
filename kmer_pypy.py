@@ -20,6 +20,33 @@ try:
 except:
     xrange = range
 
+def isprime(n) : 
+    if n <= 1 or n % 2 == 0 or n % 3 == 0: 
+        return False
+    if n == 2 or n == 3:
+        return True
+    i = 5
+    while(i * i <= n) : 
+        if n % i == 0 or n % (i + 2) == 0: 
+            return False
+        i += 6
+  
+    return True
+
+# return prime list
+def prime_list(n):
+    start = int(math.log(n, 2))
+    out = []
+    for i in xrange(start, 63):
+        N = 2**i
+        for j in xrange(N, N+7*10**7):
+            if isprime(j):
+                out.append(j)
+                break
+    out.reverse()
+    return out
+
+
 
 # blist in pure python
 rng = lambda x: (((x * 279470273) % 4294967291) * 279470273) % 4294967291
@@ -292,7 +319,7 @@ class Blist:
             pre_node  = new_node
 
     def __str__(self):
-        print str(self[:])
+        print(str(self[:]))
 
     def __repr__(self):
         return str(self[:])
@@ -330,24 +357,36 @@ def memmap(fn, mode='w+', shape=None, dtype='int8'):
     buf = mmap.mmap(f.fileno(), L*stride, prot=mmap.ACCESS_WRITE)
     return np.frombuffer(buf, dtype=dtype)
 
+primes = [4611686018427388039, 2305843009213693967, 1152921504606847009, 576460752303423619,
+        288230376151711813, 144115188075855881, 72057594037928017, 36028797018963971, 18014398509482143, 
+        9007199254740997, 4503599627370517, 2251799813685269, 1125899906842679, 562949953421381, 
+        281474976710677, 140737488355333, 70368744177679, 35184372088891, 17592186044423, 8796093022237, 
+        4398046511119, 2199023255579, 1099511627791, 549755813911, 274877906951, 137438953481, 68719476767, 
+        34359738421, 17179869209, 8589934609, 4294967311, 2147483659, 1073741827, 536870923, 268435459, 
+        134217757, 67108879, 33554467, 16777259, 8388617, 4194319, 2097169, 1048583]
 
+#print('primes', primes)
 # open addressing hash table for kmer count
 class oaht:
-    def __init__(self, capacity=1023, load_factor = .6666667, key_type='uint64', val_type='uint16'):
+    def __init__(self, capacity=1024, load_factor = .6666667, key_type='uint64', val_type='uint16'):
 
-        self.capacity = capacity
+        self.primes = [elem for elem in primes if elem > capacity]
+        #self.primes = [elem for elem in primes if elem > capacity]
+        self.capacity = self.primes.pop()
         # load factor is 2/3
         self.load = load_factor
         self.size = 0
         self.null = 2**64-1
         # for big, my own mmap based array can be used
-        self.keys = np.empty(capacity, dtype=key_type)
-        self.values = np.zeros(capacity, dtype=val_type)
+        self.keys = np.empty(self.capacity, dtype=key_type)
+        self.values = np.zeros(self.capacity, dtype=val_type)
         self.keys[:] = self.null
+
 
     def resize(self):
         N = self.capacity
-        M = N * 2
+        #M = N * 2
+        M = self.primes.pop()
         null = self.null
         keys = np.empty(M, dtype='uint64')
         values = np.zeros(M, dtype='uint16')
