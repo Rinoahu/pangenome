@@ -740,7 +740,7 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
 
         print('>' + i.id)
         #print(i.seq)
-        print(path[:40])
+        print(path[:6])
         n = len(seq_fw)
         print('path', len(path), 'seq', len(seq_fw), n)
         N += n
