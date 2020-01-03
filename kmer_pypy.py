@@ -332,7 +332,7 @@ def memmap(fn, mode='w+', shape=None, dtype='int8'):
 
 
 # open addressing hash table for kmer count
-class ht:
+class oaht:
     def __init__(self, capacity=1023, load_factor = .6666667, key_type='uint64', val_type='uint16'):
 
         self.capacity = capacity
@@ -342,7 +342,7 @@ class ht:
         self.null = 2**64-1
         # for big, my own mmap based array can be used
         self.keys = np.empty(capacity, dtype=key_type)
-        self.values = np.empty(capacity, dtype=val_type)
+        self.values = np.zeros(capacity, dtype=val_type)
         self.keys[:] = self.null
 
     def resize(self):
@@ -350,7 +350,7 @@ class ht:
         M = N * 2
         null = self.null
         keys = np.empty(M, dtype='uint64')
-        values = np.empty(M, dtype='uint16')
+        values = np.zeros(M, dtype='uint16')
         keys[:] = null
         self.capacity = M
 
@@ -361,7 +361,7 @@ class ht:
                 value = self.values[i]
                 # new hash
                 j, k = key % M, 1
-                while keys[j] != null:
+                while key != keys[j] != null:
                     j = (j + k*k) % M
                     k += 1
 
@@ -418,7 +418,10 @@ class ht:
         null = self.null
         for i in self.keys:
             if i != null:
-                yield i
+                yield int(i)
+
+    def __len__(self):
+        return self.size
 
 # count 1 of the binary number
 #def nbit(n):
@@ -544,9 +547,10 @@ def query(xs, x):
 
 # function to compress genome sequence
 def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
-    kmer = min(max(1, kmer), 31)
+    kmer = min(max(1, kmer), 27)
     size = int(pow(bits, kmer)+1)
-    kmer_dict = memmap('tmp.npy', shape=size, dtype='int16')
+    #kmer_dict = memmap('tmp.npy', shape=size, dtype='int16')
+    kmer_dict = oaht(2**20)
    
     #for i in xrange(size):
     #    kmer_dict[i] = i
@@ -565,7 +569,12 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
 
                 h = lastc[ord(hd)] << offbit
                 d = lastc[ord(nt)]
-                kmer_dict[k] |= (h | d) 
+                try:
+                    kmer_dict[k] |= (h | d) 
+                except:
+                    kmer_dict[k] = (h | d)
+                if k == 23:
+                    print('wocao', k, kmer_dict[k])
  
             N += n
         print('N is', N)
@@ -579,11 +588,19 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
     dbg = []
     out_deg = 0
     nodes = 0
-    for i in xrange(len(kmer_dict)):
-        hn = kmer_dict[i]
+    #for i in xrange(len(kmer_dict)):
+    for i in kmer_dict:
+        print('iter', i, kmer_dict[i])
+        try:
+            hn = kmer_dict[i]
+        except:
+            print('i is', i)
+            raise SystemExit()
+
         #if kmer_dict[i] > 0:
         if hn > 0:
-            km = n2k_(i, kmer)
+            #print('i is', i, 'hn', hn, 'kmer', kmer)
+            km = n2k_(int(i), kmer)
             #hn = kmer_dict[i]
             pr = nbit(hn >> offbit)
             sf = nbit(hn & lowbit)
@@ -661,6 +678,7 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
     print('Graph size', Graph.size(), 'edge', len(Graph.edges()), 'node', len(Graph.nodes()))
     #for n0, n1 in Graph.edges():
     #    print('edge\t%d\t%d'%(n0, n1))
+    return kmer_dict
 
 # print the manual
 def manual_print():
@@ -673,7 +691,7 @@ def manual_print():
 
 def entry_point(argv):
 
-    args = {'-i': '', '-k': '50', '-n': '1000000'}
+    args = {'-I': '', '-k': '50', '-n': '1000000'}
     N = len(argv)
 
     for i in xrange(1, N):
@@ -686,7 +704,7 @@ def entry_point(argv):
         else:
             continue
 
-    qry, kmer, Ns = args['-i'], int(args['-k']), int(eval(args['-n']))
+    qry, kmer, Ns = args['-I'], int(args['-k']), int(eval(args['-n']))
     if not qry:
         seq = 'ACCCATCGGGCTAAACCCCCCCCCCGATCGATCGAC'
         #seq = 'AAAAAAAAAAGAAAAAAAAAATAAAAAAAAAACAAAAAAAAAA'
@@ -699,8 +717,9 @@ def entry_point(argv):
         print(a1[-105:])
         raise SystemExit()
 
-    seq2dbg(qry, kmer, 5, Ns)
-    return 0
+    dct = seq2dbg(qry, kmer, 5, Ns)
+    #return 0
+    return dct
 
 
 def target(*args):
@@ -708,4 +727,4 @@ def target(*args):
 
 if __name__ == "__main__":
 
-    entry_point(sys.argv)
+    dct = entry_point(sys.argv)
