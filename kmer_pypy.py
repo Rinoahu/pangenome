@@ -10,6 +10,7 @@ from bisect import bisect_left
 import math
 import mmap
 import networkx as nx
+import gc
 try:
     from _numpypy import multiarray as np
 except:
@@ -331,9 +332,87 @@ def memmap(fn, mode='w+', shape=None, dtype='int8'):
     return np.frombuffer(buf, dtype=dtype)
 
 
-# open addressing hash
+# open addressing hash table for kmer count
 class ht:
-    pass    
+    def __init__(self, capacity=1023, load_factor = .6666667, key_type='uint64', val_type='uint16'):
+
+        self.capacity = capacity
+        # load factor is 2/3
+        self.load = load_factor
+        self.size = 0
+        self.null = 2**64-1
+        # for big, my own mmap based array can be used
+        self.keys = np.empty(capacity, dtype=key_type)
+        self.values = np.empty(capacity, dtype=val_type)
+        self.keys[:] = self.null
+
+    def resize(self):
+        N = self.capacity
+        M = N * 2
+        null = self.null
+        keys = np.empty(M, dtype='uint64')
+        values = np.empty(M, dtype='uint16')
+        keys[:] = null
+        self.capacity = M
+
+        # re-hash
+        for i in xrange(N):
+            key = self.keys[i]
+            if key != null:
+                value = self.values[i]
+                # new hash
+                j, k = key % M, 1
+                while keys[j] != null:
+                    j = (j + k*k) % M
+                    k += 1
+
+                keys[j] = key
+                values[j] = value
+            else:
+                continue
+
+        self.keys = keys
+        self.values = values
+        gc.collect()
+
+    def pointer(self, key):
+        M = self.capacity
+        null = self.null
+        j, k = key % M, 1
+        while null != self.keys[j] != key:
+            j = (j + k*k) % M
+
+        return j
+
+
+    def __setitem__(self, key, value):
+        j = self.pointer(key)
+        self.keys[j] = key
+        self.values[j] = value
+        self.size += 1
+        # if too many elements
+        if self.size * 1. / self.capacity > self.load:
+            self.resize()
+
+    def __getitem__(self, key):
+        j = self.pointer(key)
+        #print('key', key, 'target', j, self.keys[j])
+        if key == self.keys[j]:
+            return self.values[j]
+        else:
+            raise KeyError
+
+    def __delitem__(self, key):
+        j = self.pointer(key)
+        if key == self.keys[j]:
+            self.keys[j] = null
+            self.size -= 1
+        else:
+            raise KeyError
+
+    def has_key(self, key):
+        j = self.pointer(key)
+        return key == self.keys[j] and True or False
 
 
 # count 1 of the binary number
