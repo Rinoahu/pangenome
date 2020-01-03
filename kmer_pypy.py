@@ -377,10 +377,15 @@ class oaht:
         self.load = load_factor
         self.size = 0
         self.null = 2**64-1
+        self.ktype = key_type
+        self.vtype = val_type
         # for big, my own mmap based array can be used
-        self.keys = np.empty(self.capacity, dtype=key_type)
-        self.values = np.zeros(self.capacity, dtype=val_type)
+        N = self.capacity
+        #self.keys = np.empty(N, dtype=key_type)
+        self.keys = memmap('tmp_key.npy', shape=N, dtype=key_type)
         self.keys[:] = self.null
+        #self.values = np.empty(N, dtype=val_type)
+        self.values = memmap('tmp_val.npy', shape=N, dtype=val_type)
 
 
     def resize(self):
@@ -388,9 +393,11 @@ class oaht:
         #M = N * 2
         M = self.primes.pop()
         null = self.null
-        keys = np.empty(M, dtype='uint64')
-        values = np.zeros(M, dtype='uint16')
+        #keys = np.empty(M, dtype='uint64')
+        keys = memmap('tmp_key0.npy', shape=M, dtype=self.ktype)
         keys[:] = null
+        #values = np.empty(M, dtype='uint16')
+        values = memmap('tmp_val0.npy', shape=M, dtype=self.vtype)
         self.capacity = M
 
         # re-hash
@@ -408,9 +415,13 @@ class oaht:
                 values[j] = value
             else:
                 continue
+        # change name
+        os.system('mv tmp_key0.npy tmp_key.npy && mv tmp_val0.npy tmp_val.npy')
+        #self.keys = keys
+        self.keys = memmap('tmp_key.npy', shape=M, dtype=self.ktype)
+        #self.values = values
+        self.values = memmap('tmp_val.npy', shape=M, dtype=self.vtype)
 
-        self.keys = keys
-        self.values = values
         gc.collect()
 
     def pointer(self, key):
