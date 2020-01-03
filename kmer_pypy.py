@@ -360,7 +360,7 @@ class oaht:
             if key != null:
                 value = self.values[i]
                 # new hash
-                j, k = key % M, 1
+                j, k = hash(key) % M, 1
                 while key != keys[j] != null:
                     j = (j + k*k) % M
                     k += 1
@@ -377,9 +377,10 @@ class oaht:
     def pointer(self, key):
         M = self.capacity
         null = self.null
-        j, k = key % M, 1
+        j, k = hash(key) % M, 1
         while null != self.keys[j] != key:
             j = (j + k*k) % M
+            k += 1
 
         return j
 
@@ -573,8 +574,8 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
                     kmer_dict[k] |= (h | d) 
                 except:
                     kmer_dict[k] = (h | d)
-                if k == 23:
-                    print('wocao', k, kmer_dict[k])
+                #if k == 23:
+                #    print('wocao', k, kmer_dict[k])
  
             N += n
         print('N is', N)
@@ -590,11 +591,11 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
     nodes = 0
     #for i in xrange(len(kmer_dict)):
     for i in kmer_dict:
-        print('iter', i, kmer_dict[i])
+        #print('iter', i)
         try:
             hn = kmer_dict[i]
         except:
-            print('i is', i)
+            print('not found', i, np.where(kmer_dict.keys == i))
             raise SystemExit()
 
         #if kmer_dict[i] > 0:
@@ -670,7 +671,7 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
         print('>' + i.id)
         #print(i.seq)
         print('path', len(path), 'seq', n)
-        print(path[:])
+        print(path[:40])
         n = len(seq)
         N += n
         if N > Ns:
