@@ -381,6 +381,7 @@ class oaht:
         self.ktype = key_type
         self.vtype = val_type
         self.disk = disk
+        self.radius = 0
         # for big, my own mmap based array can be used
         N = self.capacity
 
@@ -409,7 +410,7 @@ class oaht:
 
         keys[:] = null
         self.capacity = M
-
+        self.radius = 0
         # re-hash
         for i in xrange(N):
             key = self.keys[i]
@@ -421,6 +422,7 @@ class oaht:
                     j = (j + k*k) % M
                     k += 1
 
+                self.radius = max(k, self.radius)
                 keys[j] = key
                 values[j] = value
             else:
@@ -448,6 +450,8 @@ class oaht:
         while null != self.keys[j] != key:
             j = (j + k*k) % M
             k += 1
+
+        self.radius = max(k, self.radius)
 
         return j
 
