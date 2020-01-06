@@ -370,7 +370,7 @@ primes = [4611686018427388039, 2305843009213693967, 1152921504606847009, 5764607
 #print('primes', primes)
 # open addressing hash table for kmer count based on robin hood algorithm
 class robin:
-    def __init__(self, capacity=1024, load_factor = .9, key_type='uint64', val_type='uint16', disk=False):
+    def __init__(self, capacity=1024, load_factor = .85, key_type='uint64', val_type='uint16', disk=False):
 
         self.primes = [elem for elem in primes if elem > capacity]
         #self.primes = [elem for elem in primes if elem > capacity]
@@ -405,7 +405,7 @@ class robin:
         N = self.capacity
         #M = N * 2
         M = self.primes.pop()
-        print('resize from %d to %d'%(N, M))
+        print('resize from %d to %d, size %d'%(N, M, self.size))
         null = self.null
         if self.disk:
             keys, fv = memmap('tmp_key0.npy', shape=M, dtype=self.ktype)
@@ -429,10 +429,16 @@ class robin:
                 value = self.values[i]
                 # new hash
                 j, k = hash(key) % M, 0
+                j_init = j
                 #j_rich, k_rich, diff = self.null, 255, 0
-                while key != keys[j] != null:
-                    k += 1
-                    j = (j + 1) % M
+                #while key != keys[j] != null:
+                for k in xrange(N):
+                    if keys[j] == key or keys[j] == null:
+                        break
+
+                    #k += 1
+                    #j = (j + 1) % M
+                    j = (j_init + k) % M
                     #diff += 1
                     #if dist[j] < k_rich:
                     #    j_rich, k_rich, diff = j, dist[j], 0
@@ -474,12 +480,19 @@ class robin:
         M = self.capacity
         null = self.null
         j, k = hash(key) % M, 0
+        j_init = j
 
         # the rich point
         j_rich, k_rich, diff = self.null, 255, 0
-        while null != self.keys[j] != key:
-            k += 1
-            j = (j + 1) % M
+        #while null != self.keys[j] != key:
+        for k in xrange(M):
+            if self.keys[j] == key or self.keys[j] == null:
+                break
+
+            #k += 1
+            #j = (j + 1) % M
+            j = (j_init + k) % M
+
             diff += 1
             if self.dist[j] < k_rich:
                 j_rich, k_rich, diff = j, self.dist[j], 0
@@ -540,8 +553,6 @@ class robin:
         return self.size
 
 
-
-
 # open addressing hash table for kmer count
 class oaht:
     def __init__(self, capacity=1024, load_factor = .6666667, key_type='uint64', val_type='uint16', disk=False):
@@ -575,12 +586,13 @@ class oaht:
         N = self.capacity
         #M = N * 2
         M = self.primes.pop()
-        print('resize from %d to %d'%(N, M))
+        print('resize from %d to %d, size %d'%(N, M, self.size))
         null = self.null
         if self.disk:
             keys, fv = memmap('tmp_key0.npy', shape=M, dtype=self.ktype)
             values, fk = memmap('tmp_val0.npy', shape=M, dtype=self.vtype)
         else:
+            print('extend array in ram')
             keys = np.empty(M, dtype=self.ktype)
             values = np.empty(M, dtype=self.vtype)
 
@@ -588,19 +600,32 @@ class oaht:
         self.capacity = M
         self.radius = 0
         # re-hash
+        #mx_sum = 0
+        keys_old, values_old = self.keys, self.values
         for i in xrange(N):
-            key = self.keys[i]
+            key = keys_old[i]
             if key != null:
-                value = self.values[i]
+                value = values_old[i]
                 # new hash
-                j, k = hash(key) % M, 1
-                while key != keys[j] != null:
-                    j = (j + k*k) % M
-                    k += 1
+                j, k = hash(key) % M, 0
+                j_init = j
+                #while key != keys[j] != null:
+                for k in xrange(N):
+
+                    if keys[j] == key or keys[j] == null:
+                        break
+
+                    j = (j_init + k * k) % M
+                    #k += 1
+                    #mx_sum += 1
 
                 self.radius = max(k, self.radius)
                 keys[j] = key
                 values[j] = value
+
+                #if i % 10**5 == 0:
+                #    print('resize iter', i, mx_sum)
+
             else:
                 continue
 
@@ -617,15 +642,21 @@ class oaht:
             self.keys = keys
             self.values = values
 
+        del keys_old, values_old
         gc.collect()
 
     def pointer(self, key):
         M = self.capacity
         null = self.null
-        j, k = hash(key) % M, 1
-        while null != self.keys[j] != key:
-            j = (j + k*k) % M
-            k += 1
+        j, k = hash(key) % M, 0
+        j_init = j
+        #while null != self.keys[j] != key:
+        for k in xrange(M):
+            if self.keys[j] == key or self.keys[j] == null:
+                break
+
+            #k += 1
+            j = (j_init + k * k) % M
 
         self.radius = max(k, self.radius)
 
@@ -829,8 +860,8 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
     kmer = min(max(1, kmer), 27)
     size = int(pow(bits, kmer)+1)
     #kmer_dict = memmap('tmp.npy', shape=size, dtype='int16')
-    kmer_dict = oaht(2**20)
-    #kmer_dict = robin(2**20)
+    #kmer_dict = oaht(2**20)
+    kmer_dict = robin(2**20, load_factor=.85)
    
    
     #for i in xrange(size):
@@ -841,6 +872,8 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
         seq_fw = str(i.seq)
         seq_rv = str(i.reverse_complement().seq)
         #print('seq', seq_fw[:10], seq_rv[:10])
+
+        #itr = 0
         for seq in [seq_fw, seq_rv]:
             n = len(seq)
             for k, hd, nt in seq2ns_(seq, kmer, bits):
@@ -856,6 +889,10 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
                     kmer_dict[k] |= (h | d) 
                 except:
                     kmer_dict[k] = (h | d)
+
+                #itr += 1
+                #if itr % 10 ** 5 == 0:
+                #    print('iter', itr)
 
             N += n
         print('N is', N)
