@@ -368,6 +368,179 @@ primes = [4611686018427388039, 2305843009213693967, 1152921504606847009, 5764607
         134217757, 67108879, 33554467, 16777259, 8388617, 4194319, 2097169, 1048583]
 
 #print('primes', primes)
+# open addressing hash table for kmer count based on robin hood algorithm
+class robin:
+    def __init__(self, capacity=1024, load_factor = .9, key_type='uint64', val_type='uint16', disk=False):
+
+        self.primes = [elem for elem in primes if elem > capacity]
+        #self.primes = [elem for elem in primes if elem > capacity]
+        self.capacity = self.primes.pop()
+        # load factor is 2/3
+        self.load = load_factor
+        self.size = 0
+        self.null = 2**64-1
+        self.ktype = key_type
+        self.vtype = val_type
+        self.disk = disk
+        self.radius = 0
+        # for big, my own mmap based array can be used
+        N = self.capacity
+
+        # enable disk based hash
+        if self.disk:
+            self.keys, self.fk = memmap('tmp_key.npy', shape=N, dtype=key_type)
+            self.values, self.fv = memmap('tmp_val.npy', shape=N, dtype=val_type)
+            self.dist, self.fd = memmap('tmp_dis.npy', shape=N, dtype='uint8')
+
+        else:
+            self.keys = np.empty(N, dtype=key_type)
+            self.values = np.empty(N, dtype=val_type)
+            self.dist = np.empty(N, dtype='uint8')
+
+        self.keys[:] = self.null
+        self.dist[:] = 0
+
+
+    def resize(self):
+        N = self.capacity
+        #M = N * 2
+        M = self.primes.pop()
+        null = self.null
+        if self.disk:
+            keys, fv = memmap('tmp_key0.npy', shape=M, dtype=self.ktype)
+            values, fk = memmap('tmp_val0.npy', shape=M, dtype=self.vtype)
+            dist, fd = memmap('tmp_dis0.npy', shape=M, dtype='uint8')
+
+        else:
+            keys = np.empty(M, dtype=self.ktype)
+            values = np.empty(M, dtype=self.vtype)
+            dist = np.empty(M, dtype='uint8')
+
+        keys[:] = null
+        dist[:] = 0
+
+        self.capacity = M
+        self.radius = 0
+        # re-hash
+        for i in xrange(N):
+            key = self.keys[i]
+            if key != null:
+                value = self.values[i]
+                # new hash
+                j, k = hash(key) % M, 0
+                j_rich, k_rich, diff = self.null, 255, 0
+                while key != keys[j] != null:
+                    k += 1
+                    j = (j + 1) % M
+                    diff += 1
+                    if dist[j] < k_rich:
+                        j_rich, k_rich, diff = j, dist[j], 0
+
+
+                self.radius = max(k, self.radius)
+                keys[j] = key
+                values[j] = value
+                dist[j] = k
+
+                if k > k_rich:
+                    keys[j], keys[j_rich] = keys[j_rich], keys[j]
+                    values[j], values[j_rich] = values[j_rich], values[j]
+                    dist[j] = min(max(dist[j] - diff, 0), 255)
+                    dist[j_rich] = min(max(dist[j] + diff, 0), 255)
+
+            else:
+                continue
+
+        if self.disk:
+            # change name
+            self.fk.close()
+            self.fv.close()
+            os.system('mv tmp_key0.npy tmp_key.npy && mv tmp_val0.npy tmp_val.npy && mv tmp_dis0.npy tmp_dis.npy')
+            fk.close()
+            fv.close()
+            self.keys, self.fk = memmap('tmp_key.npy', 'a+', shape=M, dtype=self.ktype)
+            self.values, self.fv = memmap('tmp_val.npy', 'a+', shape=M, dtype=self.vtype)
+            self.dist, self.fd = memmap('tmp_dis.npy', 'a+', shape=M, dtype=self.vtype)
+
+        else:
+            self.keys = keys
+            self.values = values
+            self.dist = dist
+
+        gc.collect()
+
+    def pointer(self, key):
+        M = self.capacity
+        null = self.null
+        j, k = hash(key) % M, 0
+
+        # the rich point
+        j_rich, k_rich, diff = self.null, 255, 0
+        while null != self.keys[j] != key:
+            k += 1
+            j = (j + 1) % M
+            diff += 1
+            if self.dist[j] < k_rich:
+                j_rich, k_rich, diff = j, self.dist[j], 0
+
+        self.radius = max(k, self.radius)
+        return j, k, j_rich, k_rich, diff
+
+
+    def __setitem__(self, key, value):
+        j, k, j_rich, k_rich, diff = self.pointer(key)
+        if self.keys[j] == self.null:
+            self.size += 1
+            self.keys[j] = key
+        self.values[j] = value
+        self.dist[j] = k
+        # swap
+        if k > k_rich:
+            self.keys[j], self.keys[j_rich] = self.keys[j_rich], self.keys[j]
+            self.values[j], self.values[j_rich] = self.values[j_rich], self.values[j]
+            self.dist[j] = min(max(self.dist[j] - diff, 0), 255)
+            self.dist[j_rich] = min(max(self.dist[j] + diff, 0), 255)
+
+        # if too many elements
+        if self.size * 1. / self.capacity > self.load:
+            self.resize()
+            print('resize')
+
+    def __getitem__(self, key):
+        j, k, j_rich, k_rich, diff = self.pointer(key)
+        #print('key', key, 'target', j, self.keys[j])
+        if key == self.keys[j]:
+            return self.values[j]
+        else:
+            raise KeyError
+
+    def __delitem__(self, key):
+        #j = self.pointer(key)
+        j, k, j_rich, k_rich, diff = self.pointer(key)
+        if key == self.keys[j]:
+            self.keys[j] = self.null
+            self.size -= 1
+        else:
+            raise KeyError
+
+    def has_key(self, key):
+        #j = self.pointer(key)
+        j, k, j_rich, k_rich, diff = self.pointer(key)
+
+        return key == self.keys[j] and True or False
+
+    def __iter__(self):
+        null = self.null
+        for i in self.keys:
+            if i != null:
+                yield int(i)
+
+    def __len__(self):
+        return self.size
+
+
+
+
 # open addressing hash table for kmer count
 class oaht:
     def __init__(self, capacity=1024, load_factor = .6666667, key_type='uint64', val_type='uint16', disk=True):
