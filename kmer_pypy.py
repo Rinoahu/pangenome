@@ -405,6 +405,7 @@ class robin:
         N = self.capacity
         #M = N * 2
         M = self.primes.pop()
+        print('resize from %d to %d'%(N, M))
         null = self.null
         if self.disk:
             keys, fv = memmap('tmp_key0.npy', shape=M, dtype=self.ktype)
@@ -428,13 +429,13 @@ class robin:
                 value = self.values[i]
                 # new hash
                 j, k = hash(key) % M, 0
-                j_rich, k_rich, diff = self.null, 255, 0
+                #j_rich, k_rich, diff = self.null, 255, 0
                 while key != keys[j] != null:
                     k += 1
                     j = (j + 1) % M
-                    diff += 1
-                    if dist[j] < k_rich:
-                        j_rich, k_rich, diff = j, dist[j], 0
+                    #diff += 1
+                    #if dist[j] < k_rich:
+                    #    j_rich, k_rich, diff = j, dist[j], 0
 
 
                 self.radius = max(k, self.radius)
@@ -442,11 +443,11 @@ class robin:
                 values[j] = value
                 dist[j] = k
 
-                if k > k_rich:
-                    keys[j], keys[j_rich] = keys[j_rich], keys[j]
-                    values[j], values[j_rich] = values[j_rich], values[j]
-                    dist[j] = min(max(dist[j] - diff, 0), 255)
-                    dist[j_rich] = min(max(dist[j] + diff, 0), 255)
+                #if k > k_rich:
+                #    keys[j], keys[j_rich] = keys[j_rich], keys[j]
+                #    values[j], values[j_rich] = values[j_rich], values[j]
+                #    dist[j] = min(max(dist[j] - diff, 0), 255)
+                #    dist[j_rich] = min(max(dist[j] + diff, 0), 255)
 
             else:
                 continue
@@ -504,7 +505,7 @@ class robin:
         # if too many elements
         if self.size * 1. / self.capacity > self.load:
             self.resize()
-            print('resize')
+            #print('resize')
 
     def __getitem__(self, key):
         j, k, j_rich, k_rich, diff = self.pointer(key)
@@ -543,7 +544,7 @@ class robin:
 
 # open addressing hash table for kmer count
 class oaht:
-    def __init__(self, capacity=1024, load_factor = .6666667, key_type='uint64', val_type='uint16', disk=True):
+    def __init__(self, capacity=1024, load_factor = .6666667, key_type='uint64', val_type='uint16', disk=False):
 
         self.primes = [elem for elem in primes if elem > capacity]
         #self.primes = [elem for elem in primes if elem > capacity]
@@ -574,6 +575,7 @@ class oaht:
         N = self.capacity
         #M = N * 2
         M = self.primes.pop()
+        print('resize from %d to %d'%(N, M))
         null = self.null
         if self.disk:
             keys, fv = memmap('tmp_key0.npy', shape=M, dtype=self.ktype)
@@ -640,7 +642,7 @@ class oaht:
         # if too many elements
         if self.size * 1. / self.capacity > self.load:
             self.resize()
-            print('resize')
+            #print('resize')
 
     def __getitem__(self, key):
         j = self.pointer(key)
@@ -828,6 +830,8 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
     size = int(pow(bits, kmer)+1)
     #kmer_dict = memmap('tmp.npy', shape=size, dtype='int16')
     kmer_dict = oaht(2**20)
+    #kmer_dict = robin(2**20)
+   
    
     #for i in xrange(size):
     #    kmer_dict[i] = i
