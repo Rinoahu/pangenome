@@ -867,7 +867,7 @@ def seq2ns_(seq, k=12, bit=5):
     if n > k:
         Nu = k2n_(seq[:k])
         #yield Nu, '0', seq[k]
-        print('len', n, 'kmer', k)
+        #print('len', n, 'kmer', k)
         yield Nu, '#', seq[k]
 
         shift = bit ** (k - 1)
