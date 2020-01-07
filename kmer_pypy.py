@@ -369,6 +369,7 @@ primes = [4611686018427388039, 2305843009213693967, 1152921504606847009, 5764607
 
 #print('primes', primes)
 # open addressing hash table for kmer count based on robin hood algorithm
+# has some bugs
 class robin:
     def __init__(self, capacity=1024, load_factor = .85, key_type='uint64', val_type='uint16', disk=False):
 
@@ -432,17 +433,16 @@ class robin:
                 j_init = j
                 #j_rich, k_rich, diff = self.null, 255, 0
                 #while key != keys[j] != null:
-                for k in xrange(N):
-                    if keys[j] == key or keys[j] == null:
-                        break
-
+                #for k in xrange(N):
+                for k in xrange(M):
                     #k += 1
                     #j = (j + 1) % M
                     j = (j_init + k) % M
                     #diff += 1
                     #if dist[j] < k_rich:
                     #    j_rich, k_rich, diff = j, dist[j], 0
-
+                    if keys[j] == key or keys[j] == null:
+                        break
 
                 self.radius = max(k, self.radius)
                 keys[j] = key
@@ -483,19 +483,18 @@ class robin:
         j_init = j
 
         # the rich point
-        j_rich, k_rich, diff = self.null, 255, 0
+        j_rich, k_rich, diff = null, 255, 0
         #while null != self.keys[j] != key:
         for k in xrange(M):
-            if self.keys[j] == key or self.keys[j] == null:
-                break
-
-            #k += 1
+           #k += 1
             #j = (j + 1) % M
             j = (j_init + k) % M
-
             diff += 1
             if self.dist[j] < k_rich:
                 j_rich, k_rich, diff = j, self.dist[j], 0
+
+            if self.keys[j] == key or self.keys[j] == null:
+                break
 
         self.radius = max(k, self.radius)
         return j, k, j_rich, k_rich, diff
@@ -509,7 +508,7 @@ class robin:
         self.values[j] = value
         self.dist[j] = k
         # swap
-        if k > k_rich:
+        if k > k_rich and j != j_rich:
             self.keys[j], self.keys[j_rich] = self.keys[j_rich], self.keys[j]
             self.values[j], self.values[j_rich] = self.values[j_rich], self.values[j]
             self.dist[j] = min(max(self.dist[j] - diff, 0), 255)
@@ -860,9 +859,8 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
     kmer = min(max(1, kmer), 27)
     size = int(pow(bits, kmer)+1)
     #kmer_dict = memmap('tmp.npy', shape=size, dtype='int16')
-    #kmer_dict = oaht(2**20)
-    kmer_dict = robin(2**20, load_factor=.85)
-   
+    kmer_dict = oaht(2**20)
+    #kmer_dict = robin(2**20, load_factor=.85)
    
     #for i in xrange(size):
     #    kmer_dict[i] = i
