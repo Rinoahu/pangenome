@@ -425,14 +425,14 @@ class robin:
         self.radius = 0
         # re-hash
         for i in xrange(N):
-            key = self.keys[i]
+            key = int(self.keys[i])
             if key != null:
                 value = self.values[i]
                 # new hash
                 j, k = hash(key) % M, 0
                 j_init = j
                 if key == 1093742941900681708:
-                    print('before resize', j, M)
+                    print('before resize', j, key, M, j_init, keys[j_init])
 
                 #j_rich, k_rich, diff = self.null, 255, 0
                 #while key != keys[j] != null:
@@ -453,7 +453,7 @@ class robin:
                 dist[j] = k
 
                 if key == 1093742941900681708:
-                    print('after resize', j, keys[j], M)
+                    print('after resize', j, keys[j], M, j_init, keys[j_init], k)
 
                 #if k > k_rich:
                 #    keys[j], keys[j_rich] = keys[j_rich], keys[j]
@@ -483,6 +483,7 @@ class robin:
         gc.collect()
 
     def pointer(self, key):
+        key = int(key)
         M = self.capacity
         null = self.null
         j, k = hash(key) % M, 0
@@ -508,7 +509,7 @@ class robin:
                 break
 
         if key == 1093742941900681708:
-            print('after point', j, M)
+            print('after point', j, k, j_rich, k_rich, diff, M)
 
         self.radius = max(k, self.radius)
         return j, k, j_rich, k_rich, diff
@@ -520,8 +521,8 @@ class robin:
             self.size += 1
             self.keys[j] = key
 
-        if key == 1093742941900681708:
-            print('after setting', j, k, j_rich, k_rich, self.capacity)
+        if key == 1093742941900681708 or (j_rich != self.null and self.keys[j_rich] == 1093742941900681708):
+            print('after setting', j, self.keys[j], k, j_rich, self.keys[j_rich], k_rich, diff, self.capacity)
 
         self.values[j] = value
         self.dist[j] = k
@@ -529,9 +530,9 @@ class robin:
         if k > k_rich and j != j_rich:
         #if 0:
             if key == 1093742941900681708:
-                print('after swap', j, k, j_rich, k_rich, self.capacity)
+                print('after swap', j, k, j_rich, k_rich, diff, self.capacity)
             elif self.keys[j_rich] == 1093742941900681708:
-                print('after swap fku', j, k, j_rich, k_rich, self.capacity)
+                print('after swap fku', j, self.keys[j], k, j_rich, self.keys[j_rich], k_rich, diff, self.capacity)
             else:
                 pass
             self.keys[j], self.keys[j_rich] = self.keys[j_rich], self.keys[j]
@@ -923,7 +924,7 @@ def seq2dbg0(qry, kmer=13, bits=5, Ns=1e6):
         #kmer_dict, fp = memmap('tmp.npy', shape=size, dtype='int16')
         kmer_dict = mmapht(size, 'int16')
     else:
-        kmer_dict = oaht(2**20)
+        kmer_dict = oaht(2**20, load_factor=.75)
     #kmer_dict = robin(2**20, load_factor=.85)
    
     #for i in xrange(size):
