@@ -577,6 +577,23 @@ class robin:
         return self.size
 
 
+class mmapht:
+    def __init__(self, size=1024, dtype='int16'):
+        self.values, fp = memmap('tmp.npy', shape=size, dtype=dtype)
+
+    def __getitem__(self, key):
+        return self.values[key]
+
+    def __setitem__(self, key, value):
+        self.values[key] = value
+
+    def __iter__(self):
+        for i in xrange(len(self.values)):
+            yield i
+
+    def __len__(self):
+        return len(self.values)
+
 # open addressing hash table for kmer count
 class oaht:
     def __init__(self, capacity=1024, load_factor = .6666667, key_type='uint64', val_type='uint16', disk=False):
@@ -884,7 +901,8 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
     kmer = min(max(1, kmer), 27)
     size = int(pow(bits, kmer)+1)
     if kmer <= 13:
-        kmer_dict = memmap('tmp.npy', shape=size, dtype='int16')
+        #kmer_dict, fp = memmap('tmp.npy', shape=size, dtype='int16')
+        kmer_dict = mmapht(size, 'int16')
     else:
         kmer_dict = oaht(2**20)
     #kmer_dict = robin(2**20, load_factor=.85)
@@ -933,7 +951,7 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
     nodes = 0
     #for i in xrange(len(kmer_dict)):
     for i in kmer_dict:
-        #print('iter', i)
+        #print('iter', i, len(kmer_dict), kmer_dict[i])
         try:
             hn = kmer_dict[i]
         except:
