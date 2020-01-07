@@ -746,6 +746,43 @@ class oaht:
     def __len__(self):
         return self.size
 
+
+# combine several dict
+class mdict:
+    def __init__(self, capacities=1024, load_factor=.75, key_type='uint64', val_type='uint16', fuc=oaht, bucket=64):
+        self.blk = bucket
+        self.ktype = key_type
+        self.vtype = val_type
+        self.load = load_factor
+        self.capacity = capacities
+        N = self.capacity // self.blk + 1
+        self.dicts = [fuc(capacity=N, load_factor=self.load, key_type=self.key_type, val_type=self.val_type, disk=False) for elem in xrange(self.blk)]
+
+    def __setitem__(self, key, value):
+        i = hash(key) % self.blk
+        self.dicts[i][key] = value
+
+    def __getitem__(self, key):
+        i = hash(key) % self.blk
+        return self.dicts[i][key]
+
+    def __delitem__(self, key):
+        i = hash(key) % self.blk
+        del self.dicts[i][key]
+
+    def has_key(self, key):
+        i = hash(key) % self.blk
+        return self.dicts[i].has_key(key)
+
+
+    def __iter__(self):
+        for i in self.dicts:
+            for j in i:
+                yield j
+
+    def __len__(self):
+        return sum([elem.size for elem in self.dicts])
+
 # count 1 of the binary number
 #def nbit(n):
 #    x = n - ((n >> 1) & 033333333333) - ((n >> 2) & 011111111111)
@@ -754,7 +791,6 @@ class oaht:
 def nbit(n):
     x = n - ((n >> 1) & 3681400539) - ((n >> 2) & 1227133513)
     return ((x + (x >> 3)) & 3340530119) % 63
-
 
 # the last char of the kmer
 # A: 1
@@ -924,7 +960,8 @@ def seq2dbg0(qry, kmer=13, bits=5, Ns=1e6):
         #kmer_dict, fp = memmap('tmp.npy', shape=size, dtype='int16')
         kmer_dict = mmapht(size, 'int16')
     else:
-        kmer_dict = oaht(2**20, load_factor=.75)
+        #kmer_dict = oaht(2**20, load_factor=.75)
+        kmer_dict = mdict(2**20, load_factor=.75)
     #kmer_dict = robin(2**20, load_factor=.85)
    
     #for i in xrange(size):
