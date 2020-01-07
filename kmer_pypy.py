@@ -892,12 +892,31 @@ def seq2ns_(seq, k=12, bit=5):
 # bisect based query
 # xs is the sorted array
 # x is the query
-def query(xs, x):
+def query0(xs, x):
     idx = bisect_left(xs, x)
     return x in xs[idx:idx+1]
 
+# check node exist
+def query(ht, i):
+    try:
+        hn = ht[i]
+    except:
+        return False
+
+    if hn > 0:
+        pr = nbit(hn >> offbit)
+        sf = nbit(hn & lowbit)
+        if pr == sf == 1 and sf != 0b100000:
+            return False
+        else:
+            return True
+    else:
+        return False
+
+
+
 # function to compress genome sequence
-def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
+def seq2dbg0(qry, kmer=13, bits=5, Ns=1e6):
     kmer = min(max(1, kmer), 27)
     size = int(pow(bits, kmer)+1)
     if kmer <= 13:
@@ -1041,6 +1060,66 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
     print('Graph size', Graph.size(), 'edge', len(Graph.edges()), 'node', len(Graph.nodes()))
     #for n0, n1 in Graph.edges():
     #    print('edge\t%d\t%d'%(n0, n1))
+    return kmer_dict
+
+def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
+    kmer = min(max(1, kmer), 27)
+    size = int(pow(bits, kmer)+1)
+    if kmer <= 13:
+        kmer_dict = mmapht(size, 'int16')
+    else:
+        kmer_dict = oaht(2**20)
+
+    N = 0
+    for i in SeqIO.parse(qry, 'fasta'):
+        seq_fw = str(i.seq)
+        seq_rv = str(i.reverse_complement().seq)
+        for seq in [seq_fw, seq_rv]:
+            n = len(seq)
+            for k, hd, nt in seq2ns_(seq, kmer, bits):
+                h = lastc[ord(hd)] << offbit
+                d = lastc[ord(nt)]
+                try:
+                    kmer_dict[k] |= (h | d) 
+                except:
+                    kmer_dict[k] = (h | d)
+            N += n
+        print('N is', N)
+        if N > Ns:
+            break
+
+    N = 0
+    for i in SeqIO.parse(qry, 'fasta'):
+        seq_fw = str(i.seq)
+        path = []
+        for seq in [seq_fw]:
+            skip = p0 = p1 = 0
+            for k, hd, nt in seq2ns_(seq, kmer, bits):
+                if k == -1:
+                    continue
+                if p0 > p1:
+                    p1 += 1
+                    continue
+
+                if query(kmer_dict, k):
+                    path.append(['p0', p0, 'p1', p1, 'skip', skip, hd, k, k, n2k_(k, K=kmer)])
+                    p0 += kmer + skip
+                    skip = 0
+                else:
+                    skip += 1
+                p1 += 1
+ 
+        for ii in xrange(len(path)-1):
+            n0, n1 = path[ii:ii+2]
+
+        print('>' + i.id)
+        #print(i.seq)
+        print(path[:6])
+        n = len(seq_fw)
+        print('path', len(path), 'seq', len(seq_fw), n)
+        N += n
+        if N > Ns:
+            break
     return kmer_dict
 
 # print the manual
