@@ -11,6 +11,7 @@ import math
 import mmap
 import networkx as nx
 import gc
+import itertools
 import os
 try:
     from _numpypy import multiarray as np
@@ -653,7 +654,7 @@ class oaht:
                 j_init = j
                 #while key != keys[j] != null:
                 for k in xrange(N):
-
+                #for k in itertools.count(0):
                     if keys[j] == key or keys[j] == null:
                         break
 
@@ -694,6 +695,7 @@ class oaht:
         j_init = j
         #while null != self.keys[j] != key:
         for k in xrange(M):
+        #for k in itertools.count(0):
             if self.keys[j] == key or self.keys[j] == null:
                 break
 
@@ -749,7 +751,7 @@ class oaht:
 
 # combine several dict
 class mdict:
-    def __init__(self, capacities=1024, load_factor=.75, key_type='uint64', val_type='uint16', fuc=oaht, bucket=64):
+    def __init__(self, capacities=1024, load_factor=.75, key_type='uint64', val_type='uint16', fuc=oaht, bucket=32):
         self.blk = bucket
         self.ktype = key_type
         self.vtype = val_type
@@ -812,7 +814,7 @@ offbit = int(math.log(max(lastc), 2)) + 1
 #print('offbit', offbit, bin(max(lastc)))
 lowbit = int('0b' + '1'* offbit, 2)
 #offbit = 6
-print('offbit', offbit, 'low bin', bin(lowbit))
+#print('offbit', offbit, 'low bin', bin(lowbit))
 
 # reverse next character table
 lastc_r = ['#'] * 0b100001
@@ -1122,7 +1124,7 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
                 except:
                     kmer_dict[k] = (h | d)
             N += n
-        print('N is', N)
+        #print('N is', N)
         if N > Ns:
             break
 
@@ -1149,12 +1151,13 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
  
         for ii in xrange(len(path)-1):
             n0, n1 = path[ii:ii+2]
+            print('edge %s %s'%(n0[9], n1[9]))
 
-        print('>' + i.id)
+        #print('>' + i.id)
         #print(i.seq)
-        print(path[:6])
+        #print(path[:6])
         n = len(seq_fw)
-        print('path', len(path), 'seq', len(seq_fw), n)
+        #print('path', len(path), 'seq', len(seq_fw), n)
         N += n
         if N > Ns:
             break
