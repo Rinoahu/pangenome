@@ -407,7 +407,7 @@ class robin:
         N = self.capacity
         #M = N * 2
         M = self.primes.pop()
-        print('resize from %d to %d, size %d'%(N, M, self.size))
+        #print('resize from %d to %d, size %d'%(N, M, self.size))
         null = self.null
         if self.disk:
             keys, fv = memmap('tmp_key0.npy', shape=M, dtype=self.ktype)
@@ -635,7 +635,7 @@ class oaht:
             keys, fv = memmap('tmp_key0.npy', shape=M, dtype=self.ktype)
             values, fk = memmap('tmp_val0.npy', shape=M, dtype=self.vtype)
         else:
-            print('extend array in ram')
+            #print('extend array in ram')
             keys = np.empty(M, dtype=self.ktype)
             values = np.empty(M, dtype=self.vtype)
 
