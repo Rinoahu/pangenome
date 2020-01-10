@@ -1127,7 +1127,7 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
     if kmer <= 13:
         kmer_dict = mmapht(size, 'int16')
     else:
-        kmer_dict = oaht(2**20)
+        kmer_dict = oaht(2**20, load_factor=.75)
 
     N = 0
 
