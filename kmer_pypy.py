@@ -627,6 +627,88 @@ class oaht:
 
     def resize(self):
         N = self.capacity
+        # re-hash
+        if 1:
+            # write old key and value to disk
+            keys_old, fk_old = memmap('tmp_key_old.npy', shape=N, dtype=self.ktype)
+            values_old, fv_old = memmap('tmp_val_old.npy', shape=N, dtype=self.vtype)
+            keys_old[:] = self.keys
+            values_old[:] = self.values
+            fk_old.close()
+            fv_old.close()
+            keys_old, fk_old = memmap('tmp_key_old.npy', 'a+', shape=N, dtype=self.ktype)
+            values_old,fv_old = memmap('tmp_val_old.npy', 'a+', shape=N, dtype=self.vtype)
+            del self.keys, self.values
+            gc.collect()
+        else:
+            keys_old, values_old = self.keys, self.values
+ 
+        M = self.primes.pop()
+        #print('resize from %d to %d, size %d'%(N, M, self.size))
+        null = self.null
+        if self.disk:
+            keys, fk = memmap('tmp_key0.npy', shape=M, dtype=self.ktype)
+            values, fv = memmap('tmp_val0.npy', shape=M, dtype=self.vtype)
+        else:
+            #print('extend array in ram')
+            keys = np.empty(M, dtype=self.ktype)
+            values = np.empty(M, dtype=self.vtype)
+
+        keys[:] = null
+        self.capacity = M
+        self.radius = 0
+
+        for i in xrange(N):
+            key = keys_old[i]
+            if key != null:
+                value = values_old[i]
+                # new hash
+                j, k = hash(key) % M, 0
+                j_init = j
+                #while key != keys[j] != null:
+                for k in xrange(N):
+                #for k in itertools.count(0):
+                    if keys[j] == key or keys[j] == null:
+                        break
+
+                    j = (j_init + k * k) % M
+                    #k += 1
+                    #mx_sum += 1
+
+                self.radius = max(k, self.radius)
+                keys[j] = key
+                values[j] = value
+
+                #if i % 10**5 == 0:
+                #    print('resize iter', i, mx_sum)
+
+            else:
+                continue
+
+        if self.disk:
+            # change name
+            self.fk.close()
+            self.fv.close()
+            os.system('mv tmp_key0.npy tmp_key.npy && mv tmp_val0.npy tmp_val.npy')
+            fk.close()
+            fv.close()
+            self.keys, self.fk = memmap('tmp_key.npy', 'a+', shape=M, dtype=self.ktype)
+            self.values, self.fv = memmap('tmp_val.npy', 'a+', shape=M, dtype=self.vtype)
+        else:
+            self.keys = keys
+            self.values = values
+
+        del keys_old, values_old
+        if 1:
+            fk_old.close()
+            fv_old.close()
+            os.system('rm tmp_key_old.npy tmp_val_old.npy')
+
+        gc.collect()
+
+
+    def resize0(self):
+        N = self.capacity
         #M = N * 2
         M = self.primes.pop()
         #print('resize from %d to %d, size %d'%(N, M, self.size))
@@ -642,6 +724,7 @@ class oaht:
         keys[:] = null
         self.capacity = M
         self.radius = 0
+
         # re-hash
         if 1:
             # write old key and value to disk
