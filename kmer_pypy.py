@@ -632,8 +632,8 @@ class oaht:
         #print('resize from %d to %d, size %d'%(N, M, self.size))
         null = self.null
         if self.disk:
-            keys, fv = memmap('tmp_key0.npy', shape=M, dtype=self.ktype)
-            values, fk = memmap('tmp_val0.npy', shape=M, dtype=self.vtype)
+            keys, fk = memmap('tmp_key0.npy', shape=M, dtype=self.ktype)
+            values, fv = memmap('tmp_val0.npy', shape=M, dtype=self.vtype)
         else:
             #print('extend array in ram')
             keys = np.empty(M, dtype=self.ktype)
@@ -643,8 +643,22 @@ class oaht:
         self.capacity = M
         self.radius = 0
         # re-hash
-        #mx_sum = 0
-        keys_old, values_old = self.keys, self.values
+        if 1:
+            # write old key and value to disk
+            keys_old, fk_old = memmap('tmp_key_old.npy', shape=N, dtype=self.ktype)
+            values_old, fv_old = memmap('tmp_val_old.npy', shape=N, dtype=self.vtype)
+            keys_old[:] = self.keys
+            values_old[:] = self.values
+            fk_old.close()
+            fv_old.close()
+            keys_old, fk_old = memmap('tmp_key_old.npy', 'a+', shape=N, dtype=self.ktype)
+            values_old,fv_old = memmap('tmp_val_old.npy', 'a+', shape=N, dtype=self.vtype)
+            del self.keys, self.values
+            gc.collect()
+        else:
+            keys_old, values_old = self.keys, self.values
+ 
+
         for i in xrange(N):
             key = keys_old[i]
             if key != null:
@@ -686,6 +700,11 @@ class oaht:
             self.values = values
 
         del keys_old, values_old
+        if 1:
+            fk_old.close()
+            fv_old.close()
+            os.system('rm tmp_key_old.npy tmp_val_old.npy')
+
         gc.collect()
 
     def pointer(self, key):
