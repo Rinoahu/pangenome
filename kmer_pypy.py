@@ -726,21 +726,7 @@ class oaht:
         self.radius = 0
 
         # re-hash
-        if 1:
-            # write old key and value to disk
-            keys_old, fk_old = memmap('tmp_key_old.npy', shape=N, dtype=self.ktype)
-            values_old, fv_old = memmap('tmp_val_old.npy', shape=N, dtype=self.vtype)
-            keys_old[:] = self.keys
-            values_old[:] = self.values
-            fk_old.close()
-            fv_old.close()
-            keys_old, fk_old = memmap('tmp_key_old.npy', 'a+', shape=N, dtype=self.ktype)
-            values_old,fv_old = memmap('tmp_val_old.npy', 'a+', shape=N, dtype=self.vtype)
-            del self.keys, self.values
-            gc.collect()
-        else:
-            keys_old, values_old = self.keys, self.values
- 
+        keys_old, values_old = self.keys, self.values
 
         for i in xrange(N):
             key = keys_old[i]
@@ -783,11 +769,6 @@ class oaht:
             self.values = values
 
         del keys_old, values_old
-        if 1:
-            fk_old.close()
-            fv_old.close()
-            os.system('rm tmp_key_old.npy tmp_val_old.npy')
-
         gc.collect()
 
     def pointer(self, key):
