@@ -1111,7 +1111,21 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
         kmer_dict = oaht(2**20)
 
     N = 0
-    for i in SeqIO.parse(qry, 'fasta'):
+
+    f = open(qry, 'r')
+    seq = f.read(10**6)
+    f.close()
+
+    if seq[0].startswith('>') or '\n>' in seq:
+        seq_type = 'fasta'
+    elif seq[0].startswith('@') or '\n@' in seq:
+        seq_type = 'fastq'
+    else:
+        seq_type = None
+
+    #print('input sequence is', seq_type, seq[:100])
+
+    for i in SeqIO.parse(qry, seq_type):
         seq_fw = str(i.seq)
         seq_rv = str(i.reverse_complement().seq)
         for seq in [seq_fw, seq_rv]:
@@ -1129,7 +1143,7 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
             break
 
     N = 0
-    for i in SeqIO.parse(qry, 'fasta'):
+    for i in SeqIO.parse(qry, seq_type):
         seq_fw = str(i.seq)
         path = []
         for seq in [seq_fw]:
@@ -1148,7 +1162,8 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
                 else:
                     skip += 1
                 p1 += 1
- 
+
+        #print('path', path)
         for ii in xrange(len(path)-1):
             n0, n1 = path[ii:ii+2]
             print('edge %s %s'%(n0[9], n1[9]))
@@ -1161,6 +1176,7 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
         N += n
         if N > Ns:
             break
+
     return kmer_dict
 
 # print the manual
