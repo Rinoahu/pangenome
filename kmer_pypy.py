@@ -597,7 +597,7 @@ class mmapht:
         return len(self.values)
 
 # open addressing hash table for kmer count
-class oaht:
+class oaht0:
     def __init__(self, capacity=1024, load_factor = .6666667, key_type='uint64', val_type='uint16', disk=False):
 
         self.primes = [elem for elem in primes if elem > capacity]
@@ -628,7 +628,7 @@ class oaht:
     def resize(self):
         N = self.capacity
         # re-hash
-        if 1:
+        if self.disk==False:
             # write old key and value to disk
             keys_old, fk_old = memmap('tmp_key_old.npy', shape=N, dtype=self.ktype)
             values_old, fv_old = memmap('tmp_val_old.npy', shape=N, dtype=self.vtype)
@@ -699,13 +699,13 @@ class oaht:
             self.values = values
 
         del keys_old, values_old
-        if 1:
+
+        if self.disk == False:
             fk_old.close()
             fv_old.close()
             os.system('rm tmp_key_old.npy tmp_val_old.npy')
 
         gc.collect()
-
 
     def resize0(self):
         N = self.capacity
@@ -830,6 +830,284 @@ class oaht:
 
     def __len__(self):
         return self.size
+
+
+
+
+class oaht:
+    def __init__(self, capacity=1024, load_factor = .6666667, key_type='uint64', val_type='uint16', disk=False):
+
+        self.primes = [elem for elem in primes if elem > capacity]
+        #self.primes = [elem for elem in primes if elem > capacity]
+        self.capacity = self.primes.pop()
+        # load factor is 2/3
+        self.load = load_factor
+        self.size = 0
+        self.null = 2**64-1
+        self.ktype = key_type
+        self.vtype = val_type
+        self.disk = disk
+        self.radius = 0
+        # for big, my own mmap based array can be used
+        N = self.capacity
+
+        # enable disk based hash
+        if self.disk:
+            self.keys, self.fk = memmap('tmp_key.npy', shape=N, dtype=key_type)
+            self.values, self.fv = memmap('tmp_val.npy', shape=N, dtype=val_type)
+            self.counts, self.fc = memmap('tmp_cnt.npy', shape=N, dtype='uint8')
+
+        else:
+            self.keys = np.empty(N, dtype=key_type)
+            self.values = np.empty(N, dtype=val_type)
+            self.counts = np.empty(N, dtype='uint8')
+
+        self.keys[:] = self.null
+
+
+    def resize(self):
+        N = self.capacity
+        # re-hash
+        if self.disk==False:
+            # write old key and value to disk
+            keys_old, fk_old = memmap('tmp_key_old.npy', shape=N, dtype=self.ktype)
+            values_old, fv_old = memmap('tmp_val_old.npy', shape=N, dtype=self.vtype)
+            counts_old, fc_old = memmap('tmp_cnt_old.npy', shape=N, dtype='uint8')
+
+            keys_old[:] = self.keys
+            values_old[:] = self.values
+            counts_old[:] =  self.counts
+
+            fk_old.close()
+            fv_old.close()
+            fc_old.close()
+
+            keys_old, fk_old = memmap('tmp_key_old.npy', 'a+', shape=N, dtype=self.ktype)
+            values_old,fv_old = memmap('tmp_val_old.npy', 'a+', shape=N, dtype=self.vtype)
+            counts_old,fc_old = memmap('tmp_cnt_old.npy', 'a+', shape=N, dtype='uint8')
+
+            del self.keys, self.values, self.counts
+            gc.collect()
+
+        else:
+            keys_old, values_old, counts_old = self.keys, self.values, self.counts
+ 
+        M = self.primes.pop()
+        #print('resize from %d to %d, size %d'%(N, M, self.size))
+        null = self.null
+        if self.disk:
+            keys, fk = memmap('tmp_key0.npy', shape=M, dtype=self.ktype)
+            values, fv = memmap('tmp_val0.npy', shape=M, dtype=self.vtype)
+            counts, fc = memmap('tmp_cnt0.npy', shape=M, dtype='uint8')
+
+        else:
+            #print('extend array in ram')
+            keys = np.empty(M, dtype=self.ktype)
+            values = np.empty(M, dtype=self.vtype)
+            counts = np.empty(M, dtype='uint8')
+
+        keys[:] = null
+        self.capacity = M
+        self.radius = 0
+
+        for i in xrange(N):
+            key = keys_old[i]
+            if key != null:
+                value = values_old[i]
+                count = counts_old[i]
+                # new hash
+                j, k = hash(key) % M, 0
+                j_init = j
+                #while key != keys[j] != null:
+                for k in xrange(N):
+                #for k in itertools.count(0):
+                    if keys[j] == key or keys[j] == null:
+                        break
+
+                    j = (j_init + k * k) % M
+                    #k += 1
+                    #mx_sum += 1
+
+                self.radius = max(k, self.radius)
+                keys[j] = key
+                values[j] = value
+                counts[j] = count
+
+                #if i % 10**5 == 0:
+                #    print('resize iter', i, mx_sum)
+
+            else:
+                continue
+
+        if self.disk:
+            # change name
+            self.fk.close()
+            self.fv.close()
+            self.fc.close()
+
+            os.system('mv tmp_key0.npy tmp_key.npy')
+            os.system('mv tmp_val0.npy tmp_val.npy')
+            os.system('mv tmp_cnt0.npy tmp_cnt.npy')
+
+            fk.close()
+            fv.close()
+            fc.close()
+
+            self.keys, self.fk = memmap('tmp_key.npy', 'a+', shape=M, dtype=self.ktype)
+            self.values, self.fv = memmap('tmp_val.npy', 'a+', shape=M, dtype=self.vtype)
+            self.counts, self.fc = memmap('tmp_cnt.npy', 'a+', shape=M, dtype='uint8')
+
+        else:
+            self.keys = keys
+            self.values = values
+            self.counts = counts
+
+        del keys_old, values_old, counts_old
+
+        if self.disk == False:
+            fk_old.close()
+            fv_old.close()
+            fc_old.close()
+            os.system('rm tmp_key_old.npy tmp_val_old.npy tmp_cnt_old.npy')
+
+        gc.collect()
+
+    def resize0(self):
+        N = self.capacity
+        #M = N * 2
+        M = self.primes.pop()
+        #print('resize from %d to %d, size %d'%(N, M, self.size))
+        null = self.null
+        if self.disk:
+            keys, fk = memmap('tmp_key0.npy', shape=M, dtype=self.ktype)
+            values, fv = memmap('tmp_val0.npy', shape=M, dtype=self.vtype)
+        else:
+            #print('extend array in ram')
+            keys = np.empty(M, dtype=self.ktype)
+            values = np.empty(M, dtype=self.vtype)
+
+        keys[:] = null
+        self.capacity = M
+        self.radius = 0
+
+        # re-hash
+        keys_old, values_old = self.keys, self.values
+
+        for i in xrange(N):
+            key = keys_old[i]
+            if key != null:
+                value = values_old[i]
+                # new hash
+                j, k = hash(key) % M, 0
+                j_init = j
+                #while key != keys[j] != null:
+                for k in xrange(N):
+                #for k in itertools.count(0):
+                    if keys[j] == key or keys[j] == null:
+                        break
+
+                    j = (j_init + k * k) % M
+                    #k += 1
+                    #mx_sum += 1
+
+                self.radius = max(k, self.radius)
+                keys[j] = key
+                values[j] = value
+
+                #if i % 10**5 == 0:
+                #    print('resize iter', i, mx_sum)
+
+            else:
+                continue
+
+        if self.disk:
+            # change name
+            self.fk.close()
+            self.fv.close()
+            os.system('mv tmp_key0.npy tmp_key.npy && mv tmp_val0.npy tmp_val.npy')
+            fk.close()
+            fv.close()
+            self.keys, self.fk = memmap('tmp_key.npy', 'a+', shape=M, dtype=self.ktype)
+            self.values, self.fv = memmap('tmp_val.npy', 'a+', shape=M, dtype=self.vtype)
+        else:
+            self.keys = keys
+            self.values = values
+
+        del keys_old, values_old
+        gc.collect()
+
+    def pointer(self, key):
+        M = self.capacity
+        null = self.null
+        j, k = hash(key) % M, 0
+        j_init = j
+        #while null != self.keys[j] != key:
+        for k in xrange(M):
+        #for k in itertools.count(0):
+            if self.keys[j] == key or self.keys[j] == null:
+                break
+
+            #k += 1
+            j = (j_init + k * k) % M
+
+        self.radius = max(k, self.radius)
+
+        return j
+
+
+    def __setitem__(self, key, value):
+        j = self.pointer(key)
+        if self.keys[j] == self.null:
+            self.size += 1
+            self.keys[j] = key
+            self.counts[j] = 0
+
+        self.values[j] = value
+        count = self.counts[j]
+        self.counts[j] = min(count + 1, 255)
+
+        # if too many elements
+        if self.size * 1. / self.capacity > self.load:
+            self.resize()
+            #print('resize')
+
+    def __getitem__(self, key):
+        j = self.pointer(key)
+        #print('key', key, 'target', j, self.keys[j])
+        if key == self.keys[j]:
+            return self.values[j]
+        else:
+            raise KeyError
+
+    def get_count(self, key):
+        j = self.pointer(key)
+        if key == self.keys[j]:
+            return self.counts[j]
+        else:
+            return 0
+
+
+    def __delitem__(self, key):
+        j = self.pointer(key)
+        if key == self.keys[j]:
+            self.keys[j] = self.null
+            self.size -= 1
+        else:
+            raise KeyError
+
+    def has_key(self, key):
+        j = self.pointer(key)
+        return key == self.keys[j] and True or False
+
+    def __iter__(self):
+        null = self.null
+        for i in self.keys:
+            if i != null:
+                yield int(i)
+
+    def __len__(self):
+        return self.size
+
 
 
 # combine several dict
@@ -1185,7 +1463,7 @@ def seq2dbg0(qry, kmer=13, bits=5, Ns=1e6):
     #    print('edge\t%d\t%d'%(n0, n1))
     return kmer_dict
 
-def seq2dbg1(qry, kmer=13, bits=5, Ns=1e6):
+def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
     kmer = min(max(1, kmer), 27)
     size = int(pow(bits, kmer)+1)
     if kmer <= 13:
@@ -1262,91 +1540,6 @@ def seq2dbg1(qry, kmer=13, bits=5, Ns=1e6):
 
     return kmer_dict
 
-
-
-# add counts support
-def seq2dbg(qry, kmer=13, bits=5, Ns=1e6, min_count=1):
-    kmer = min(max(1, kmer), 27)
-    size = int(pow(bits, kmer)+1)
-    if kmer <= 13:
-        kmer_dict = mmapht(size, 'int16')
-    else:
-        kmer_dict = oaht(2**20, load_factor=.75)
-
-    N = 0
-
-    f = open(qry, 'r')
-    seq = f.read(10**6)
-    f.close()
-
-    if seq[0].startswith('>') or '\n>' in seq:
-        seq_type = 'fasta'
-    elif seq[0].startswith('@') or '\n@' in seq:
-        seq_type = 'fastq'
-    else:
-        seq_type = None
-
-    #print('input sequence is', seq_type, seq[:100])
-    offbit2 = offbit*2
-    max_count = (1<<(16 - offbit2))-1
-    low_bit2 = ((1<<offbit2) - 1)
-    for i in SeqIO.parse(qry, seq_type):
-        seq_fw = str(i.seq)
-        seq_rv = str(i.reverse_complement().seq)
-        for seq in [seq_fw, seq_rv]:
-            n = len(seq)
-            for k, hd, nt in seq2ns_(seq, kmer, bits):
-                h = lastc[ord(hd)] << offbit
-                d = lastc[ord(nt)]
-                try:
-                    value = kmer_dict[k]
-                    freq = (min((value >> offbit2)+1, max_count) << offbit2)
-                    value = (((value & low_bit2) | (h | d)) | freq)
-                    kmer_dict[k] = value
-                    #kmer_dict[k] |= (h | d) 
-                except:
-                    kmer_dict[k] = ((h | d) | (1<<offbit2))
-            N += n
-        #print('N is', N)
-        if N > Ns:
-            break
-
-    N = 0
-    for i in SeqIO.parse(qry, seq_type):
-        seq_fw = str(i.seq)
-        path = []
-        for seq in [seq_fw]:
-            skip = p0 = p1 = 0
-            for k, hd, nt in seq2ns_(seq, kmer, bits):
-                if k == -1:
-                    continue
-                if p0 > p1:
-                    p1 += 1
-                    continue
-
-                if query(kmer_dict, k):
-                    path.append(['p0', p0, 'p1', p1, 'skip', skip, hd, k, k, n2k_(k, K=kmer)])
-                    p0 += kmer + skip
-                    skip = 0
-                else:
-                    skip += 1
-                p1 += 1
-
-        #print('path', path)
-        for ii in xrange(len(path)-1):
-            n0, n1 = path[ii:ii+2]
-            print('edge %s %s'%(n0[9], n1[9]))
-
-        #print('>' + i.id)
-        #print(i.seq)
-        #print(path[:6])
-        n = len(seq_fw)
-        #print('path', len(path), 'seq', len(seq_fw), n)
-        N += n
-        if N > Ns:
-            break
-
-    return kmer_dict
 
 # print the manual
 def manual_print():
