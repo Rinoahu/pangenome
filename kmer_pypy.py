@@ -1489,7 +1489,7 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
     for i in SeqIO.parse(qry, seq_type):
         seq_fw = str(i.seq)
         seq_rv = str(i.reverse_complement().seq)
-        for seq in [seq_fw, seq_rv]:
+        for seq in [seq_fw, seq_rv][:1]:
             n = len(seq)
             for k, hd, nt in seq2ns_(seq, kmer, bits):
                 h = lastc[ord(hd)] << offbit
@@ -1504,8 +1504,8 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
             break
 
     # get frequency
-    for i in kmer_dict:
-        print('freq', n2k_(i, kmer), kmer_dict.get_count(i))
+    #for i in kmer_dict:
+    #    print('freq', n2k_(i, kmer), kmer_dict.get_count(i))
 
     N = 0
     for i in SeqIO.parse(qry, seq_type):
