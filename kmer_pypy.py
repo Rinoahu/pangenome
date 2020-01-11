@@ -1503,6 +1503,10 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
         if N > Ns:
             break
 
+    # get frequency
+    for i in kmer_dict:
+        print('freq', n2k_(i, kmer), kmer_dict.get_count(i))
+
     N = 0
     for i in SeqIO.parse(qry, seq_type):
         seq_fw = str(i.seq)
