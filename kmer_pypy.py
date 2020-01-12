@@ -1599,7 +1599,7 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**10, dump='breakpoin
     breakpoint = 0
     if rec:
         #breakpoint, kmer_dict =resume[:2]
-        f = open(rec + '_seq.txt', 'r')
+        f = open(rec + '_seqs.txt', 'r')
         breakpoint = int(f.next())
         f.close()
         kmer_dict = oaht(2**20, load_factor=.75)
