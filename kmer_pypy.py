@@ -1124,25 +1124,29 @@ class oaht:
         dump_fc.close()
 
     # load hash table from disk
-    def load(self, fname):
+    def loading(self, fname):
         key_type, val_type = self.ktype, self.vtype
 
-        dump_keys, dump_fk = memmap(fname + '_dump_key.npy', 'a+', shape=N, dtype=key_type)
+        #dump_keys, dump_fk = memmap(fname + '_dump_key.npy', 'a+', shape=N, dtype=key_type)
+        dump_keys, dump_fk = memmap(fname + '_dump_key.npy', 'a+', dtype=key_type)
+
         self.keys = np.array(dump_keys)
         dump_fk.close()
 
-        dump_values, dump_fv = memmap(fname + '_dump_val.npy', 'a+', shape=N, dtype=val_type)
+        dump_values, dump_fv = memmap(fname + '_dump_val.npy', 'a+', dtype=val_type)
         self.values = np.array(dump_values)
         dump_fv.close()
 
-        dump_counts, dump_fc = memmap(fname + '_dump_cnt.npy', 'a+', shape=N, dtype='uint8')
+        dump_counts, dump_fc = memmap(fname + '_dump_cnt.npy', 'a+', dtype='uint8')
         self.counts = np.array(dump_counts)
         dump_fc.close()
         capacity  = len(self.counts)
-        self.primes = [elem for elem in primes if elem > capacity]
+        self.primes = [elem for elem in primes if elem >= capacity]
         self.capacity = self.primes.pop()
 
-        #self.size = (self.keys != self.null).sum()
+        print('loading length', map(len, [dump_keys, dump_values, dump_counts]))
+
+        self.size = np.sum(self.keys != self.null)
 
 # combine several dict
 class mdict:
@@ -1603,8 +1607,9 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**10, dump='breakpoin
         breakpoint = int(f.next())
         f.close()
         kmer_dict = oaht(2**20, load_factor=.75)
-        kmer_dict.load(rec)
-        print('the size oaht', len(oaht))
+        print('rec is', rec, kmer_dict)
+        kmer_dict.loading(rec)
+        print('the size oaht', len(kmer_dict))
 
     elif kmer <= 13:
         kmer_dict = mmapht(size, 'int16')
