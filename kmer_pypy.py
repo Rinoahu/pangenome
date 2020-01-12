@@ -1146,7 +1146,7 @@ class oaht:
 
         print('loading length', map(len, [dump_keys, dump_values, dump_counts]))
 
-        self.size = np.sum(self.keys != self.null)
+        self.size = sum(self.keys != self.null)
 
 # combine several dict
 class mdict:
