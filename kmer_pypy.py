@@ -838,7 +838,6 @@ class oaht:
     def __init__(self, capacity=1024, load_factor = .6666667, key_type='uint64', val_type='uint16', disk=False):
 
         self.primes = [elem for elem in primes if elem > capacity]
-        #self.primes = [elem for elem in primes if elem > capacity]
         self.capacity = self.primes.pop()
         # load factor is 2/3
         self.load = load_factor
@@ -1108,7 +1107,42 @@ class oaht:
     def __len__(self):
         return self.size
 
+    # save hash table to disk
+    def dump(self, fname):
+        N = len(self.keys)
+        key_type, val_type = self.ktype, self.vtype
+        dump_keys, dump_fk = memmap(fname + '_dump_key.npy', shape=N, dtype=key_type)
+        dump_keys[:] = self.keys
+        dump_fk.close()
 
+        dump_values, dump_fv = memmap(fname + '_dump_val.npy', shape=N, dtype=val_type)
+        dump_values[:] = self.values
+        dump_fv.close()
+
+        dump_counts, dump_fc = memmap(fname + '_dump_cnt.npy', shape=N, dtype='uint8')
+        dump_counts[:] = self.counts
+        dump_fc.close()
+
+    # load hash table from disk
+    def load(self, fname):
+        key_type, val_type = self.ktype, self.vtype
+
+        dump_keys, dump_fk = memmap(fname + '_dump_key.npy', 'a+', shape=N, dtype=key_type)
+        self.keys = np.array(dump_keys)
+        dump_fk.close()
+
+        dump_values, dump_fv = memmap(fname + '_dump_val.npy', 'a+', shape=N, dtype=val_type)
+        self.values = np.array(dump_values)
+        dump_fv.close()
+
+        dump_counts, dump_fc = memmap(fname + '_dump_cnt.npy', 'a+', shape=N, dtype='uint8')
+        self.counts = np.array(dump_counts)
+        dump_fc.close()
+        capacity  = len(self.counts)
+        self.primes = [elem for elem in primes if elem > capacity]
+        self.capacity = self.primes.pop()
+
+        #self.size = (self.keys != self.null).sum()
 
 # combine several dict
 class mdict:
@@ -1463,7 +1497,7 @@ def seq2dbg0(qry, kmer=13, bits=5, Ns=1e6):
     #    print('edge\t%d\t%d'%(n0, n1))
     return kmer_dict
 
-def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
+def seq2dbg1(qry, kmer=13, bits=5, Ns=1e6):
     kmer = min(max(1, kmer), 27)
     size = int(pow(bits, kmer)+1)
     if kmer <= 13:
@@ -1544,6 +1578,129 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6):
 
     return kmer_dict
 
+# get the  breakpoint
+def rec_bkt(f, seq_type):
+    N = f.tell()
+    header = seq_type == 'fastq' and '\n@' or '\n>'
+    while 1:
+        f.seek(N)
+        if f.read(2) == header:
+            N += 1
+            #break
+            return N
+        else:
+            N -= 1
+    return 0
+
+# adding resume function
+def seq2dbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**10, dump='breakpoint'):
+    kmer = min(max(1, kmer), 27)
+    size = int(pow(bits, kmer)+1)
+    breakpoint = 0
+    if rec:
+        #breakpoint, kmer_dict =resume[:2]
+        f = open(rec + '_seq.txt', 'r')
+        breakpoint = int(f.next())
+        f.close()
+        kmer_dict = oaht(2**20, load_factor=.75)
+        kmer_dict.load(rec)
+        print('the size oaht', len(oaht))
+
+    elif kmer <= 13:
+        kmer_dict = mmapht(size, 'int16')
+    else:
+        kmer_dict = oaht(2**20, load_factor=.75)
+
+    N = 0
+
+    f = open(qry, 'r')
+    seq = f.read(10**6)
+    f.close()
+
+    if seq[0].startswith('>') or '\n>' in seq:
+        seq_type = 'fasta'
+    elif seq[0].startswith('@') or '\n@' in seq:
+        seq_type = 'fastq'
+    else:
+        seq_type = None
+
+    print('breakpoint is', breakpoint)
+    #print('input sequence is', seq_type, seq[:100])
+    f = open(qry, 'r')
+    f.seek(breakpoint)
+    flag = 0
+    #for i in SeqIO.parse(qry, seq_type):
+    for i in SeqIO.parse(f, seq_type):
+        seq_fw = str(i.seq)
+        seq_rv = str(i.reverse_complement().seq)
+        for seq in [seq_fw, seq_rv]:
+            n = len(seq)
+            for k, hd, nt in seq2ns_(seq, kmer, bits):
+                h = lastc[ord(hd)] << offbit
+                d = lastc[ord(nt)]
+                try:
+                    kmer_dict[k] |= (h | d) 
+                except:
+                    kmer_dict[k] = (h | d)
+            N += n
+            flag += n
+
+        # save the breakpoint
+        if flag > chunk:
+            bkt = rec_bkt(f, seq_type)
+            print('breakpoint', bkt)
+            _o = open(dump+'_seqs.txt', 'w')
+            _o.write('%d'%bkt)
+            _o.close()
+            flag = 0
+            kmer_dict.dump(dump)
+
+        #print('N is', N)
+        if N > Ns:
+            break
+
+    f.close()
+    # get frequency
+    #for i in kmer_dict:
+    #    print('freq', n2k_(i, kmer), kmer_dict.get_count(i))
+
+    N = 0
+    for i in SeqIO.parse(qry, seq_type):
+        seq_fw = str(i.seq)
+        path = []
+        for seq in [seq_fw]:
+            skip = p0 = p1 = 0
+            for k, hd, nt in seq2ns_(seq, kmer, bits):
+                if k == -1:
+                    continue
+                if p0 > p1:
+                    p1 += 1
+                    continue
+
+                if query(kmer_dict, k):
+                    path.append(['p0', p0, 'p1', p1, 'skip', skip, hd, k, k, n2k_(k, K=kmer)])
+                    p0 += kmer + skip
+                    skip = 0
+                else:
+                    skip += 1
+                p1 += 1
+
+        #print('path', path)
+        for ii in xrange(len(path)-1):
+            n0, n1 = path[ii:ii+2]
+            print('edge %s %s'%(n0[9], n1[9]))
+
+        #print('>' + i.id)
+        #print(i.seq)
+        #print(path[:6])
+        n = len(seq_fw)
+        #print('path', len(path), 'seq', len(seq_fw), n)
+        N += n
+        if N > Ns:
+            break
+
+    return kmer_dict
+
 
 # print the manual
 def manual_print():
@@ -1556,7 +1713,7 @@ def manual_print():
 
 def entry_point(argv):
 
-    args = {'-i': '', '-k': '50', '-n': '1000000'}
+    args = {'-i': '', '-k': '50', '-n': '1000000', '-r': ''}
     N = len(argv)
 
     for i in xrange(1, N):
@@ -1569,7 +1726,8 @@ def entry_point(argv):
         else:
             continue
 
-    qry, kmer, Ns = args['-i'], int(args['-k']), int(eval(args['-n']))
+    # bkt, the breakpoint
+    qry, kmer, Ns, bkt = args['-i'], int(args['-k']), int(eval(args['-n'])), args['-r']
     if not qry:
         seq = 'ACCCATCGGGCTAAACCCCCCCCCCGATCGATCGAC'
         #seq = 'AAAAAAAAAAGAAAAAAAAAATAAAAAAAAAACAAAAAAAAAA'
@@ -1582,7 +1740,8 @@ def entry_point(argv):
         print(a1[-105:])
         raise SystemExit()
 
-    dct = seq2dbg(qry, kmer, 5, Ns)
+    print('recover from', bkt)
+    dct = seq2dbg(qry, kmer, 5, Ns, rec=bkt)
     return 0
     #return dct
 
