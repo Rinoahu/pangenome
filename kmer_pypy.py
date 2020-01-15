@@ -580,14 +580,22 @@ class robin:
 
 
 class mmapht:
-    def __init__(self, size=1024, dtype='int16'):
-        self.values, fp = memmap('tmp.npy', shape=size, dtype=dtype)
+    def __init__(self, size=1024, dtype='int16', fn='tmp'):
+        self.values, fp = memmap(fn+'_values.npy', shape=size, dtype=dtype)
+        self.counts, fp = memmap(fn+'_counts.npy', shape=size, dtype='uint8')
+
 
     def __getitem__(self, key):
         return self.values[key]
 
+    def get_count(self, key):
+        return self.counts[key]
+
+
     def __setitem__(self, key, value):
         self.values[key] = value
+        count = self.counts[key]
+        self.counts[key] = min(count+1, 255)
 
     def __iter__(self):
         for i in xrange(len(self.values)):
@@ -1597,11 +1605,11 @@ def rec_bkt(f, seq_type):
     return 0
 
 # adding resume function
-def seq2dbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**10, dump='breakpoint'):
+def seq2dbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoint'):
     kmer = min(max(1, kmer), 27)
     size = int(pow(bits, kmer)+1)
     breakpoint = 0
-    if rec:
+    if os.path.isfile(rec+'_seqs.txt'):
         #breakpoint, kmer_dict =resume[:2]
         f = open(rec + '_seqs.txt', 'r')
         breakpoint = int(f.next())
@@ -1666,8 +1674,9 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**10, dump='breakpoin
 
     f.close()
     # get frequency
-    #for i in kmer_dict:
-    #    print('freq', n2k_(i, kmer), kmer_dict.get_count(i))
+    for i in kmer_dict:
+        print('size', len(kmer_dict), 'freq', n2k_(i, kmer), kmer_dict.get_count(i))
+        break
 
     N = 0
     for i in SeqIO.parse(qry, seq_type):
@@ -1690,10 +1699,11 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**10, dump='breakpoin
                     skip += 1
                 p1 += 1
 
-        #print('path', path)
-        for ii in xrange(len(path)-1):
-            n0, n1 = path[ii:ii+2]
-            print('edge %s %s'%(n0[9], n1[9]))
+        print(seq_fw)
+        print('path', path)
+        #for ii in xrange(len(path)-1):
+        #    n0, n1 = path[ii:ii+2]
+        #    print('edge %s %s'%(n0[9], n1[9]))
 
         #print('>' + i.id)
         #print(i.seq)
