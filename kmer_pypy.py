@@ -1699,6 +1699,11 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoin
                     skip += 1
                 p1 += 1
 
+            # if path is empty, then sequence has non-repetitive k-mer, add the last k-mer to path
+            if not path:
+                path = ['p0', p0, 'p1', p1, 'skip', skip, hd, k, k, n2k_(k, K=kmer)]
+
+
         print(seq_fw)
         print('path', path)
         #for ii in xrange(len(path)-1):
