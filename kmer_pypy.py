@@ -358,7 +358,7 @@ def memmap(fn, mode='w+', shape=None, dtype='int8'):
 
     #print 'L', L
     buf = mmap.mmap(f.fileno(), L*stride, prot=mmap.ACCESS_WRITE)
-    return np.frombuffer(buf, dtype=dtype), f
+    return np.frombuffer(buf, dtype=dtype).reshape(shape), f
 
 primes = [4611686018427388039, 2305843009213693967, 1152921504606847009, 576460752303423619,
         288230376151711813, 144115188075855881, 72057594037928017, 36028797018963971, 18014398509482143, 
@@ -1214,6 +1214,8 @@ class oaht:
             values_old, fv_old = memmap('tmp_val_old.npy', shape=N, dtype=self.vtype)
             counts_old, fc_old = memmap('tmp_cnt_old.npy', shape=N, dtype='uint8')
 
+            #iprint(keys_old.shape, self.keys.shape)
+
             keys_old[:] = self.keys
             values_old[:] = self.values
             counts_old[:] =  self.counts
@@ -2041,6 +2043,29 @@ def entry_point(argv):
         print(a0 == a1) 
         print(a0[-105:])
         print(a1[-105:])
+
+        # test 
+        from random import randint
+        N = 10**6
+        mkey = 4
+        clf = oaht(mkey=mkey)
+        x = [tuple([randint(0, N) for tmp in range(mkey)]) for elem in xrange(N)]
+        y = [tuple([randint(0, N) for tmp in range(mkey)]) for elem in xrange(N)]
+
+        for i in x:
+	    clf[i] = i[0]
+
+        flag = 0
+        for i in x:
+	    if clf.has_key(i):
+		flag += 1
+        print('x', flag)
+
+        flag = 0
+        for i in y:
+	    if clf.has_key(i):
+		flag += 1
+        print('y', flag)
         raise SystemExit()
 
     print('recover from', bkt)
