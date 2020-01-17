@@ -1605,7 +1605,7 @@ def rec_bkt(f, seq_type):
     return 0
 
 # adding resume function
-def seq2dbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoint'):
+def seq2dbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoint', saved='dBG_disk'):
     kmer = min(max(1, kmer), 27)
     size = int(pow(bits, kmer)+1)
     breakpoint = 0
@@ -1671,6 +1671,9 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoin
         #print('N is', N)
         if N > Ns:
             break
+
+    # save the de bruijn graph to disk
+    kmer_dict.dump(saved)
 
     f.close()
     # get frequency
