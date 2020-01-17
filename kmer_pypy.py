@@ -1936,8 +1936,8 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoin
         f = open(rec + '_seqs.txt', 'r')
         breakpoint = int(f.next())
         f.close()
-        kmer_dict = oaht(2**20, load_factor=.75)
-        #kmer_dict = oamkht(2**20, load_factor=.75)
+        #kmer_dict = oaht(2**20, load_factor=.75)
+        kmer_dict = oamkht(2**20, load_factor=.75)
 
         print('rec is', rec, kmer_dict)
         kmer_dict.loading(rec)
