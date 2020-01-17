@@ -581,9 +581,10 @@ class robin:
 
 class mmapht:
     def __init__(self, size=1024, dtype='int16', fn='tmp'):
-        self.values, fp = memmap(fn+'_values.npy', shape=size, dtype=dtype)
-        self.counts, fp = memmap(fn+'_counts.npy', shape=size, dtype='uint8')
-
+        self.values, self.fp = memmap(fn+'_values.npy', shape=size, dtype=dtype)
+        self.counts, self.fc = memmap(fn+'_counts.npy', shape=size, dtype='uint8')
+        self.fn = fn
+        self.dtype = dtype
 
     def __getitem__(self, key):
         return self.values[key]
@@ -603,6 +604,22 @@ class mmapht:
 
     def __len__(self):
         return len(self.values)
+
+    def dump(self, saved='dBG_disk'):
+        self.fp.close()
+        self.fc.close()
+        os.system('mv %s_values.npy %s_values.npy'%(self.fn, saved))
+        os.system('mv %s_counts.npy %s_counts.npy'%(self.fn, saved))
+
+    def load(self, fn='dBG_disk'):
+        self.fp.close()
+        self.fc.close()
+        os.system('rm %s_values.npy'%self.fn)
+        os.system('rm %s_counts.npy'%self.fn)
+        self.fn = self.fn
+        self.values, self.fp = memmap(fn+'_values.npy', 'a+', shape=size, dtype=dtype)
+        self.counts, self.fc = memmap(fn+'_counts.npy', 'a+', shape=size, dtype='uint8')
+ 
 
 # open addressing hash table for kmer count
 class oaht0:
