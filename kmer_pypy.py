@@ -857,7 +857,7 @@ class oaht0:
         return self.size
 
 
-class oaht1:
+class oaht:
     def __init__(self, capacity=1024, load_factor = .6666667, key_type='uint64', val_type='uint16', disk=False):
 
         self.primes = [elem for elem in primes if elem > capacity]
@@ -1173,7 +1173,7 @@ class oaht1:
 
 
 # support multiple key
-class oaht:
+class oamkht:
     def __init__(self, capacity=1024, load_factor = .75, mkey=1, key_type='uint64', val_type='uint16', disk=False):
 
         self.primes = [elem for elem in primes if elem > capacity]
@@ -1202,6 +1202,17 @@ class oaht:
             self.counts = np.empty(N, dtype='uint8')
 
         self.keys[::mkey] = self.null
+
+
+    # whether key0 == key1
+    def eq(self, k0, s0, k1, s1, N):
+        if N == 1:
+            return k0[s0] == k1
+        else:
+            for i in xrange(N):
+                if k0[i+s0] != k1[i+s1]:
+                    return False
+            return True
 
 
     def resize(self):
@@ -1266,7 +1277,8 @@ class oaht:
                 for k in xrange(N):
                 #for k in itertools.count(0):
                     jm = j * mkey
-                    if keys[jm] == null or all(keys[jm:jm+mkey] == key) :
+                    #if keys[jm] == null or all(keys[jm:jm+mkey] == key) :
+                    if keys[jm] == null or self.eq(keys, jm, key, 0, mkey) :
                         break
 
                     j = (j_init + k * k) % M
@@ -1323,13 +1335,18 @@ class oaht:
         mkey = self.mkey
         M = self.capacity
         null = self.null
-        j, k = hash(tuple(key)) % M, 0
+        if mkey <= 1:
+            j, k = hash(key) % M, 0
+        else:
+            j, k = hash(tuple(key)) % M, 0
+        k = 0
         j_init = j
         #while null != self.keys[j] != key:
         for k in xrange(M):
         #for k in itertools.count(0):
             jm = j * mkey
-            if all(self.keys[jm:jm+mkey] == key) or self.keys[jm] == null:
+            #if all(self.keys[jm:jm+mkey] == key) or self.keys[jm] == null:
+            if self.eq(self.keys, jm, key, 0, mkey) or self.keys[jm] == null:
                 break
 
             #k += 1
@@ -1363,7 +1380,9 @@ class oaht:
         #print('key', key, 'target', j, self.keys[j])
         mkey = self.mkey
         jm = j * mkey
-        if all(key == self.keys[jm: jm+mkey]):
+        #if all(key == self.keys[jm: jm+mkey]):
+        if self.eq(key, 0, self.keys, jm, mkey):
+
             return self.values[j]
         else:
             raise KeyError
@@ -1372,7 +1391,8 @@ class oaht:
         j = self.pointer(key)
         mkey = self.mkey
         jm = j * mkey
-        if all(key == self.keys[jm: jm+mkey]):
+        #if all(key == self.keys[jm: jm+mkey]):
+        if self.eq(key, 0, self.keys, jm, mkey):
             return self.counts[j]
         else:
             return 0
@@ -1382,7 +1402,8 @@ class oaht:
         j = self.pointer(key)
         mkey = self.mkey
         jm = j * mkey
-        if all(key == self.keys[jm: jm+mkey]):
+        #if all(key == self.keys[jm: jm+mkey]):
+        if self.eq(key, 0, self.keys, jm, mkey):
             self.keys[jm] = self.null
             self.size -= 1
         else:
@@ -1392,7 +1413,8 @@ class oaht:
         j = self.pointer(key)
         mkey = self.mkey
         jm = j * mkey
-        return all(key == self.keys[jm:jm+mkey])
+        #return all(key == self.keys[jm:jm+mkey])
+        return self.eq(key, 0, self.keys, jm, mkey)
 
     def __iter__(self):
         null = self.null
@@ -1915,6 +1937,8 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoin
         breakpoint = int(f.next())
         f.close()
         kmer_dict = oaht(2**20, load_factor=.75)
+        #kmer_dict = oamkht(2**20, load_factor=.75)
+
         print('rec is', rec, kmer_dict)
         kmer_dict.loading(rec)
         print('the size oaht', len(kmer_dict))
@@ -2066,7 +2090,7 @@ def entry_point(argv):
         from random import randint
         N = 10**6
         mkey = 4
-        clf = oaht(mkey=mkey)
+        clf = oamkht(mkey=mkey)
         x = [tuple([randint(0, N) for tmp in range(mkey)]) for elem in xrange(N)]
         y = [tuple([randint(0, N) for tmp in range(mkey)]) for elem in xrange(N)]
 
