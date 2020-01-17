@@ -857,9 +857,7 @@ class oaht0:
         return self.size
 
 
-
-
-class oaht:
+class oaht1:
     def __init__(self, capacity=1024, load_factor = .6666667, key_type='uint64', val_type='uint16', disk=False):
 
         self.primes = [elem for elem in primes if elem > capacity]
@@ -1172,6 +1170,271 @@ class oaht:
         print('loading length', map(len, [dump_keys, dump_values, dump_counts]))
 
         self.size = sum(self.keys != self.null)
+
+
+# support multiple key
+class oaht:
+    def __init__(self, capacity=1024, load_factor = .6666667, mkey=1, key_type='uint64', val_type='uint16', disk=False):
+
+        self.primes = [elem for elem in primes if elem > capacity]
+        self.capacity = self.primes.pop()
+        # load factor is 2/3
+        self.load = load_factor
+        self.size = 0
+        self.null = 2**64-1
+        self.ktype = key_type
+        self.vtype = val_type
+        self.disk = disk
+        self.radius = 0
+        self.mkey = mkey
+        # for big, my own mmap based array can be used
+        N = self.capacity
+
+        # enable disk based hash
+        if self.disk:
+            self.keys, self.fk = memmap('tmp_key.npy', shape=(mkey, N), dtype=key_type)
+            self.values, self.fv = memmap('tmp_val.npy', shape=N, dtype=val_type)
+            self.counts, self.fc = memmap('tmp_cnt.npy', shape=N, dtype='uint8')
+
+        else:
+            self.keys = np.empty((mkey, N), dtype=key_type)
+            self.values = np.empty(N, dtype=val_type)
+            self.counts = np.empty(N, dtype='uint8')
+
+        self.keys[0, :] = self.null
+
+
+    def resize(self):
+        N = self.capacity
+        mkey = self.mkey
+        # re-hash
+        if self.disk==False:
+            # write old key and value to disk
+            keys_old, fk_old = memmap('tmp_key_old.npy', shape=(mkey, N), dtype=self.ktype)
+            values_old, fv_old = memmap('tmp_val_old.npy', shape=N, dtype=self.vtype)
+            counts_old, fc_old = memmap('tmp_cnt_old.npy', shape=N, dtype='uint8')
+
+            keys_old[:] = self.keys
+            values_old[:] = self.values
+            counts_old[:] =  self.counts
+
+            fk_old.close()
+            fv_old.close()
+            fc_old.close()
+
+            keys_old, fk_old = memmap('tmp_key_old.npy', 'a+', shape=(mkey, N), dtype=self.ktype)
+            values_old,fv_old = memmap('tmp_val_old.npy', 'a+', shape=N, dtype=self.vtype)
+            counts_old,fc_old = memmap('tmp_cnt_old.npy', 'a+', shape=N, dtype='uint8')
+
+            del self.keys, self.values, self.counts
+            gc.collect()
+
+        else:
+            keys_old, values_old, counts_old = self.keys, self.values, self.counts
+ 
+        M = self.primes.pop()
+        #print('resize from %d to %d, size %d'%(N, M, self.size))
+        null = self.null
+        if self.disk:
+            keys, fk = memmap('tmp_key0.npy', shape=(mkey, M), dtype=self.ktype)
+            values, fv = memmap('tmp_val0.npy', shape=M, dtype=self.vtype)
+            counts, fc = memmap('tmp_cnt0.npy', shape=M, dtype='uint8')
+
+        else:
+            #print('extend array in ram')
+            keys = np.empty((mkey, M), dtype=self.ktype)
+            values = np.empty(M, dtype=self.vtype)
+            counts = np.empty(M, dtype='uint8')
+
+        keys[0, :] = null
+        self.capacity = M
+        self.radius = 0
+
+        for i in xrange(N):
+            key = keys_old[:, i]
+            if key[0] != null:
+                value = values_old[i]
+                count = counts_old[i]
+                # new hash
+                j, k = hash(tuple(key)) % M, 0
+                j_init = j
+                #while key != keys[j] != null:
+                for k in xrange(N):
+                #for k in itertools.count(0):
+                    if keys[0, j] == null or all(keys[:, j] == key) :
+                        break
+
+                    j = (j_init + k * k) % M
+                    #k += 1
+                    #mx_sum += 1
+
+                self.radius = max(k, self.radius)
+                keys[:, j] = key
+                values[j] = value
+                counts[j] = count
+
+                #if i % 10**5 == 0:
+                #    print('resize iter', i, mx_sum)
+
+            else:
+                continue
+
+        if self.disk:
+            # change name
+            self.fk.close()
+            self.fv.close()
+            self.fc.close()
+
+            os.system('mv tmp_key0.npy tmp_key.npy')
+            os.system('mv tmp_val0.npy tmp_val.npy')
+            os.system('mv tmp_cnt0.npy tmp_cnt.npy')
+
+            fk.close()
+            fv.close()
+            fc.close()
+
+            self.keys, self.fk = memmap('tmp_key.npy', 'a+', shape=(mkey, M), dtype=self.ktype)
+            self.values, self.fv = memmap('tmp_val.npy', 'a+', shape=M, dtype=self.vtype)
+            self.counts, self.fc = memmap('tmp_cnt.npy', 'a+', shape=M, dtype='uint8')
+
+        else:
+            self.keys = keys
+            self.values = values
+            self.counts = counts
+
+        del keys_old, values_old, counts_old
+
+        if self.disk == False:
+            fk_old.close()
+            fv_old.close()
+            fc_old.close()
+            os.system('rm tmp_key_old.npy tmp_val_old.npy tmp_cnt_old.npy')
+
+        gc.collect()
+
+    def pointer(self, key):
+        M = self.capacity
+        null = self.null
+        j, k = hash(tuple(key)) % M, 0
+        j_init = j
+        #while null != self.keys[j] != key:
+        for k in xrange(M):
+        #for k in itertools.count(0):
+            if all(self.keys[:, j] == key) or self.keys[0, j] == null:
+                break
+
+            #k += 1
+            j = (j_init + k * k) % M
+
+        self.radius = max(k, self.radius)
+
+        return j
+
+
+    def __setitem__(self, key, value):
+        j = self.pointer(key)
+        if self.keys[0, j] == self.null:
+            self.size += 1
+            self.keys[:, j] = key
+            self.counts[j] = 0
+
+        self.values[j] = value
+        count = self.counts[j]
+        self.counts[j] = min(count + 1, 255)
+
+        # if too many elements
+        if self.size * 1. / self.capacity > self.load:
+            self.resize()
+            #print('resize')
+
+    def __getitem__(self, key):
+        j = self.pointer(key)
+        #print('key', key, 'target', j, self.keys[j])
+        if all(key == self.keys[:, j]):
+            return self.values[j]
+        else:
+            raise KeyError
+
+    def get_count(self, key):
+        j = self.pointer(key)
+        if all(key == self.keys[:, j]):
+            return self.counts[j]
+        else:
+            return 0
+
+
+    def __delitem__(self, key):
+        j = self.pointer(key)
+        if all(key == self.keys[:, j]):
+            self.keys[j] = self.null
+            self.size -= 1
+        else:
+            raise KeyError
+
+    def has_key(self, key):
+        j = self.pointer(key)
+        return all(key == self.keys[:, j])
+
+    def __iter__(self):
+        null = self.null
+        #for i in self.keys:
+        #    if i != null:
+        #        yield int(i)
+        for i in xrange(self.keys.shape[1]):
+            if self.keys[0, i] != null:
+                yield self.keys[:, i]
+
+    def __len__(self):
+        return self.size
+
+    # save hash table to disk
+    def dump(self, fname):
+        mkey, N = self.keys.shape
+        key_type, val_type = self.ktype, self.vtype
+        dump_keys, dump_fk = memmap(fname + '_dump_key.npy', shape=(mkey, N), dtype=key_type)
+        dump_keys[:] = self.keys
+        dump_fk.close()
+
+        dump_values, dump_fv = memmap(fname + '_dump_val.npy', shape=N, dtype=val_type)
+        dump_values[:] = self.values
+        dump_fv.close()
+
+        dump_counts, dump_fc = memmap(fname + '_dump_cnt.npy', shape=N, dtype='uint8')
+        dump_counts[:] = self.counts
+        dump_fc.close()
+
+    # load hash table from disk
+    def loading(self, fname):
+        key_type, val_type = self.ktype, self.vtype
+
+        dump_values, dump_fv = memmap(fname + '_dump_val.npy', 'a+', dtype=val_type)
+        self.values = np.array(dump_values)
+        dump_fv.close()
+
+        dump_counts, dump_fc = memmap(fname + '_dump_cnt.npy', 'a+', dtype='uint8')
+        self.counts = np.array(dump_counts)
+        dump_fc.close()
+
+        # get the shape of the key
+        N = len(self.counts)
+        dump_keys, dump_fk = memmap(fname + '_dump_key.npy', 'a+', dtype=key_type)
+        mkey = len(dump_keys) // N
+        dump_fk.close()
+
+        dump_keys, dump_fk = memmap(fname + '_dump_key.npy', 'a+', shape=(mkey, N), dtype=key_type)
+        self.keys = np.array(dump_keys)
+        dump_fk.close()
+
+        self.mkey = mkey
+
+
+        capacity  = len(self.counts)
+        self.primes = [elem for elem in primes if elem >= capacity]
+        self.capacity = self.primes.pop()
+
+        print('loading length', map(len, [dump_keys, dump_values, dump_counts]))
+
+        self.size = sum(self.keys[0, :] != self.null)
 
 # combine several dict
 class mdict:
