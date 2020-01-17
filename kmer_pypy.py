@@ -2088,25 +2088,25 @@ def entry_point(argv):
 
         # test 
         from random import randint
-        N = 10**6
+        N = 10**4
         mkey = 4
         clf = oamkht(mkey=mkey)
         x = [tuple([randint(0, N) for tmp in range(mkey)]) for elem in xrange(N)]
         y = [tuple([randint(0, N) for tmp in range(mkey)]) for elem in xrange(N)]
 
         for i in x:
-	    clf[i] = i[0]
+            clf[i] = i[0]
 
         flag = 0
         for i in x:
-	    if clf.has_key(i):
-		flag += 1
+            if clf.has_key(i):
+                flag += 1
         print('x', flag)
 
         flag = 0
         for i in y:
-	    if clf.has_key(i):
-		flag += 1
+            if clf.has_key(i):
+                flag += 1
         print('y', flag)
         raise SystemExit()
 
