@@ -1174,7 +1174,7 @@ class oaht1:
 
 # support multiple key
 class oaht:
-    def __init__(self, capacity=1024, load_factor = .6666667, mkey=1, key_type='uint64', val_type='uint16', disk=False):
+    def __init__(self, capacity=1024, load_factor = .75, mkey=1, key_type='uint64', val_type='uint16', disk=False):
 
         self.primes = [elem for elem in primes if elem > capacity]
         self.capacity = self.primes.pop()
@@ -1192,16 +1192,16 @@ class oaht:
 
         # enable disk based hash
         if self.disk:
-            self.keys, self.fk = memmap('tmp_key.npy', shape=(mkey, N), dtype=key_type)
+            self.keys, self.fk = memmap('tmp_key.npy', shape=mkey*N, dtype=key_type)
             self.values, self.fv = memmap('tmp_val.npy', shape=N, dtype=val_type)
             self.counts, self.fc = memmap('tmp_cnt.npy', shape=N, dtype='uint8')
 
         else:
-            self.keys = np.empty((mkey, N), dtype=key_type)
+            self.keys = np.empty(mkey * N, dtype=key_type)
             self.values = np.empty(N, dtype=val_type)
             self.counts = np.empty(N, dtype='uint8')
 
-        self.keys[0, :] = self.null
+        self.keys[::mkey] = self.null
 
 
     def resize(self):
@@ -1210,7 +1210,7 @@ class oaht:
         # re-hash
         if self.disk==False:
             # write old key and value to disk
-            keys_old, fk_old = memmap('tmp_key_old.npy', shape=(mkey, N), dtype=self.ktype)
+            keys_old, fk_old = memmap('tmp_key_old.npy', shape=mkey * N, dtype=self.ktype)
             values_old, fv_old = memmap('tmp_val_old.npy', shape=N, dtype=self.vtype)
             counts_old, fc_old = memmap('tmp_cnt_old.npy', shape=N, dtype='uint8')
 
@@ -1224,7 +1224,7 @@ class oaht:
             fv_old.close()
             fc_old.close()
 
-            keys_old, fk_old = memmap('tmp_key_old.npy', 'a+', shape=(mkey, N), dtype=self.ktype)
+            keys_old, fk_old = memmap('tmp_key_old.npy', 'a+', shape=mkey * N, dtype=self.ktype)
             values_old,fv_old = memmap('tmp_val_old.npy', 'a+', shape=N, dtype=self.vtype)
             counts_old,fc_old = memmap('tmp_cnt_old.npy', 'a+', shape=N, dtype='uint8')
 
@@ -1238,22 +1238,24 @@ class oaht:
         #print('resize from %d to %d, size %d'%(N, M, self.size))
         null = self.null
         if self.disk:
-            keys, fk = memmap('tmp_key0.npy', shape=(mkey, M), dtype=self.ktype)
+            keys, fk = memmap('tmp_key0.npy', shape=mkey*M, dtype=self.ktype)
             values, fv = memmap('tmp_val0.npy', shape=M, dtype=self.vtype)
             counts, fc = memmap('tmp_cnt0.npy', shape=M, dtype='uint8')
 
         else:
             #print('extend array in ram')
-            keys = np.empty((mkey, M), dtype=self.ktype)
+            keys = np.empty(mkey*M, dtype=self.ktype)
             values = np.empty(M, dtype=self.vtype)
             counts = np.empty(M, dtype='uint8')
 
-        keys[0, :] = null
+        keys[::mkey] = null
         self.capacity = M
         self.radius = 0
 
         for i in xrange(N):
-            key = keys_old[:, i]
+            #key = keys_old[:, i]
+            im = i * mkey
+            key = keys_old[im: im+mkey]
             if key[0] != null:
                 value = values_old[i]
                 count = counts_old[i]
@@ -1263,7 +1265,8 @@ class oaht:
                 #while key != keys[j] != null:
                 for k in xrange(N):
                 #for k in itertools.count(0):
-                    if keys[0, j] == null or all(keys[:, j] == key) :
+                    jm = j * mkey
+                    if keys[jm] == null or all(keys[jm:jm+mkey] == key) :
                         break
 
                     j = (j_init + k * k) % M
@@ -1271,7 +1274,9 @@ class oaht:
                     #mx_sum += 1
 
                 self.radius = max(k, self.radius)
-                keys[:, j] = key
+                #keys[:, j] = key
+                jm = j*mkey
+                keys[jm: jm+mkey] = key
                 values[j] = value
                 counts[j] = count
 
@@ -1295,7 +1300,7 @@ class oaht:
             fv.close()
             fc.close()
 
-            self.keys, self.fk = memmap('tmp_key.npy', 'a+', shape=(mkey, M), dtype=self.ktype)
+            self.keys, self.fk = memmap('tmp_key.npy', 'a+', shape=mkey*M, dtype=self.ktype)
             self.values, self.fv = memmap('tmp_val.npy', 'a+', shape=M, dtype=self.vtype)
             self.counts, self.fc = memmap('tmp_cnt.npy', 'a+', shape=M, dtype='uint8')
 
@@ -1315,6 +1320,7 @@ class oaht:
         gc.collect()
 
     def pointer(self, key):
+        mkey = self.mkey
         M = self.capacity
         null = self.null
         j, k = hash(tuple(key)) % M, 0
@@ -1322,7 +1328,8 @@ class oaht:
         #while null != self.keys[j] != key:
         for k in xrange(M):
         #for k in itertools.count(0):
-            if all(self.keys[:, j] == key) or self.keys[0, j] == null:
+            jm = j * mkey
+            if all(self.keys[jm:jm+mkey] == key) or self.keys[jm] == null:
                 break
 
             #k += 1
@@ -1335,9 +1342,11 @@ class oaht:
 
     def __setitem__(self, key, value):
         j = self.pointer(key)
-        if self.keys[0, j] == self.null:
+        mkey = self.mkey
+        jm = mkey * j
+        if self.keys[jm] == self.null:
             self.size += 1
-            self.keys[:, j] = key
+            self.keys[jm:jm+mkey] = key
             self.counts[j] = 0
 
         self.values[j] = value
@@ -1352,14 +1361,18 @@ class oaht:
     def __getitem__(self, key):
         j = self.pointer(key)
         #print('key', key, 'target', j, self.keys[j])
-        if all(key == self.keys[:, j]):
+        mkey = self.mkey
+        jm = j * mkey
+        if all(key == self.keys[jm: jm+mkey]):
             return self.values[j]
         else:
             raise KeyError
 
     def get_count(self, key):
         j = self.pointer(key)
-        if all(key == self.keys[:, j]):
+        mkey = self.mkey
+        jm = j * mkey
+        if all(key == self.keys[jm: jm+mkey]):
             return self.counts[j]
         else:
             return 0
@@ -1367,24 +1380,29 @@ class oaht:
 
     def __delitem__(self, key):
         j = self.pointer(key)
-        if all(key == self.keys[:, j]):
-            self.keys[j] = self.null
+        mkey = self.mkey
+        jm = j * mkey
+        if all(key == self.keys[jm: jm+mkey]):
+            self.keys[jm] = self.null
             self.size -= 1
         else:
             raise KeyError
 
     def has_key(self, key):
         j = self.pointer(key)
-        return all(key == self.keys[:, j])
+        mkey = self.mkey
+        jm = j * mkey
+        return all(key == self.keys[jm:jm+mkey])
 
     def __iter__(self):
         null = self.null
         #for i in self.keys:
         #    if i != null:
         #        yield int(i)
-        for i in xrange(self.keys.shape[1]):
-            if self.keys[0, i] != null:
-                yield self.keys[:, i]
+        mkey = self.mkey
+        for i in xrange(0, self.keys.shape[0], mkey):
+            if self.keys[i] != null:
+                yield self.keys[i:i+mkey]
 
     def __len__(self):
         return self.size
