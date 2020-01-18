@@ -1249,13 +1249,13 @@ class oamkht:
         #print('resize from %d to %d, size %d'%(N, M, self.size))
         null = self.null
         if self.disk:
-            keys, fk = memmap('tmp_key0.npy', shape=mkey*M, dtype=self.ktype)
+            keys, fk = memmap('tmp_key0.npy', shape=mkey * M, dtype=self.ktype)
             values, fv = memmap('tmp_val0.npy', shape=M, dtype=self.vtype)
             counts, fc = memmap('tmp_cnt0.npy', shape=M, dtype='uint8')
 
         else:
             #print('extend array in ram')
-            keys = np.empty(mkey*M, dtype=self.ktype)
+            keys = np.empty(mkey * M, dtype=self.ktype)
             values = np.empty(M, dtype=self.vtype)
             counts = np.empty(M, dtype='uint8')
 
@@ -1266,12 +1266,19 @@ class oamkht:
         for i in xrange(N):
             #key = keys_old[:, i]
             im = i * mkey
-            key = keys_old[im: im+mkey]
-            if key[0] != null:
+
+            if mkey > 1:
+                key = tuple(keys_old[im: im+mkey])
+                key0 = key[0]
+            else:
+                key0 = key = keys_old[im]
+
+            if key0 != null:
                 value = values_old[i]
                 count = counts_old[i]
                 # new hash
-                j, k = hash(tuple(key)) % M, 0
+                j, k = hash(key) % M, 0
+
                 j_init = j
                 #while key != keys[j] != null:
                 for k in xrange(N):
@@ -1289,6 +1296,7 @@ class oamkht:
                 #keys[:, j] = key
                 jm = j*mkey
                 keys[jm: jm+mkey] = key
+                #print('resize', jm, M, keys[jm], key)
                 values[j] = value
                 counts[j] = count
 
@@ -1335,10 +1343,11 @@ class oamkht:
         mkey = self.mkey
         M = self.capacity
         null = self.null
-        if mkey <= 1:
-            j, k = hash(key) % M, 0
-        else:
-            j, k = hash(tuple(key)) % M, 0
+
+        if mkey > 1:
+            key = tuple(key)
+
+        j, k = hash(key) % M, 0
         k = 0
         j_init = j
         #while null != self.keys[j] != key:
@@ -1363,7 +1372,9 @@ class oamkht:
         jm = mkey * j
         if self.keys[jm] == self.null:
             self.size += 1
+            #print('before set', self.keys[jm: jm+mkey], key)
             self.keys[jm:jm+mkey] = key
+            #print('after set', self.keys[jm: jm+mkey], key)
             self.counts[j] = 0
 
         self.values[j] = value
@@ -1381,8 +1392,8 @@ class oamkht:
         mkey = self.mkey
         jm = j * mkey
         #if all(key == self.keys[jm: jm+mkey]):
-        if self.eq(key, 0, self.keys, jm, mkey):
-
+        #if self.eq(key, 0, self.keys, jm, mkey):
+        if self.eq(self.keys, jm, key, 0, mkey):
             return self.values[j]
         else:
             raise KeyError
@@ -1392,7 +1403,9 @@ class oamkht:
         mkey = self.mkey
         jm = j * mkey
         #if all(key == self.keys[jm: jm+mkey]):
-        if self.eq(key, 0, self.keys, jm, mkey):
+        #print(key, 0, self.keys[:2], jm, mkey)
+        #if self.eq(key, 0, self.keys, jm, mkey):
+        if self.eq(self.keys, jm, key, 0, mkey):
             return self.counts[j]
         else:
             return 0
@@ -1403,7 +1416,8 @@ class oamkht:
         mkey = self.mkey
         jm = j * mkey
         #if all(key == self.keys[jm: jm+mkey]):
-        if self.eq(key, 0, self.keys, jm, mkey):
+        #if self.eq(key, 0, self.keys, jm, mkey):
+        if self.eq(self.keys, jm, key, 0, mkey):
             self.keys[jm] = self.null
             self.size -= 1
         else:
@@ -1414,7 +1428,10 @@ class oamkht:
         mkey = self.mkey
         jm = j * mkey
         #return all(key == self.keys[jm:jm+mkey])
-        return self.eq(key, 0, self.keys, jm, mkey)
+        #return self.eq(key, 0, self.keys, jm, mkey)
+        #print('has key', jm, self.capacity, self.keys[jm], key)
+        return self.eq(self.keys, jm, key, 0, mkey)
+   
 
     def __iter__(self):
         null = self.null
@@ -1422,21 +1439,27 @@ class oamkht:
         #    if i != null:
         #        yield int(i)
         mkey = self.mkey
-        for i in xrange(0, self.keys.shape[0], mkey):
-            if self.keys[i] != null:
-                yield self.keys[i:i+mkey]
-
+        if mkey > 1:
+            for i in xrange(0, self.keys.shape[0], mkey):
+                if self.keys[i] != null:
+                    yield self.keys[i:i+mkey]
+        else:
+            for i in xrange(0, self.keys.shape[0], mkey):
+                if self.keys[i] != null:
+                    yield self.keys[i]
+ 
     def __len__(self):
         return self.size
 
     # save hash table to disk
     def dump(self, fname):
-        mkey, N = self.keys.shape
+        M = self.keys.shape
         key_type, val_type = self.ktype, self.vtype
-        dump_keys, dump_fk = memmap(fname + '_dump_key.npy', shape=(mkey, N), dtype=key_type)
+        dump_keys, dump_fk = memmap(fname + '_dump_key.npy', shape=M, dtype=key_type)
         dump_keys[:] = self.keys
         dump_fk.close()
 
+        N = self.values.shape
         dump_values, dump_fv = memmap(fname + '_dump_val.npy', shape=N, dtype=val_type)
         dump_values[:] = self.values
         dump_fv.close()
@@ -1447,7 +1470,12 @@ class oamkht:
 
     # load hash table from disk
     def loading(self, fname):
+
         key_type, val_type = self.ktype, self.vtype
+
+        dump_keys, dump_fk = memmap(fname + '_dump_key.npy', 'a+', dtype=key_type)
+        self.keys = np.array(dump_keys)
+        dump_fk.close()
 
         dump_values, dump_fv = memmap(fname + '_dump_val.npy', 'a+', dtype=val_type)
         self.values = np.array(dump_values)
@@ -1457,26 +1485,14 @@ class oamkht:
         self.counts = np.array(dump_counts)
         dump_fc.close()
 
-        # get the shape of the key
-        N = len(self.counts)
-        dump_keys, dump_fk = memmap(fname + '_dump_key.npy', 'a+', dtype=key_type)
-        mkey = len(dump_keys) // N
-        dump_fk.close()
-
-        dump_keys, dump_fk = memmap(fname + '_dump_key.npy', 'a+', shape=(mkey, N), dtype=key_type)
-        self.keys = np.array(dump_keys)
-        dump_fk.close()
-
-        self.mkey = mkey
-
+        self.mkey = len(self.keys) // len(self.values)
 
         capacity  = len(self.counts)
         self.primes = [elem for elem in primes if elem >= capacity]
         self.capacity = self.primes.pop()
 
-        print('loading length', map(len, [dump_keys, dump_values, dump_counts]))
-
-        self.size = sum(self.keys[0, :] != self.null)
+        #print('loading length', map(len, [dump_keys, dump_values, dump_counts]))
+        self.size = sum(self.keys[:: self.mkey] != self.null)
 
 # combine several dict
 class mdict:
@@ -1580,7 +1596,7 @@ beta = 'AGCTNNNN'
 # convert int to kmer
 # K is the length of kmer
 def n2k_(N, K=12, bit=5):
-    n, s = N, []
+    n, s = int(N), []
     for i in xrange(K):
         c = beta[n % bit]
         n //= bit
@@ -1946,7 +1962,9 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoin
     elif kmer <= 13:
         kmer_dict = mmapht(size, 'int16')
     else:
-        kmer_dict = oaht(2**20, load_factor=.75)
+        #kmer_dict = oaht(2**20, load_factor=.75)
+        kmer_dict = oamkht(2**20, load_factor=.75)
+
 
     N = 0
 
@@ -2002,6 +2020,9 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoin
     f.close()
     # get frequency
     for i in kmer_dict:
+        print('key', i)
+        print('freq', n2k_(i, kmer))
+        print('#'*10)
         print('size', len(kmer_dict), 'freq', n2k_(i, kmer), kmer_dict.get_count(i))
         break
 
@@ -2031,7 +2052,7 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoin
                 path = ['p0', p0, 'p1', p1, 'skip', skip, hd, k, k, n2k_(k, K=kmer)]
 
 
-        print(seq_fw)
+        print(seq_fw[:27])
         print('path', path)
         #for ii in xrange(len(path)-1):
         #    n0, n1 = path[ii:ii+2]
@@ -2089,25 +2110,42 @@ def entry_point(argv):
         # test 
         from random import randint
         N = 10**6
-        mkey = 4
+        mkey = 5
         clf = oamkht(mkey=mkey)
-        x = [tuple([randint(0, N) for tmp in range(mkey)]) for elem in xrange(N)]
-        y = [tuple([randint(0, N) for tmp in range(mkey)]) for elem in xrange(N)]
+
+        if mkey>1:
+            x = [tuple([randint(0, N) for tmp in range(mkey)]) for elem in xrange(N)]
+            y = [tuple([randint(0, N) for tmp in range(mkey)]) for elem in xrange(N)]
+        else:
+            x = [randint(0, 2**63) for elem in xrange(N)]
+            y = [randint(0, 2**63) for elem in xrange(N)]
 
         for i in x:
-            clf[i] = i[0]
+            try:
+                val = min(255, i[0])
+            except:
+                val = min(255, i)
+            clf[i] = min(255, val)
 
         flag = 0
         for i in x:
-            if clf[i] == i[0]:
+            try:
+                val = min(255, i[0])
+            except:
+                val = min(255, i)
+
+            if clf.has_key(i):
                 flag += 1
-        print('x', flag)
+            #else:
+            #    print('not eq', i, val, i in x)
+
+        print('x == %d'%len(x), flag)
 
         flag = 0
         for i in y:
             if clf.has_key(i):
                 flag += 1
-        print('y', flag)
+        print('y == 0', flag)
         raise SystemExit()
 
     print('recover from', bkt)
