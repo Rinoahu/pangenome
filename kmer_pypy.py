@@ -1943,7 +1943,7 @@ def rec_bkt(f, seq_type):
     return 0
 
 # adding resume function
-def seq2dbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoint', saved='dBG_disk'):
+def seq2dbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoint', saved='dBG_disk', hashfunc=oamkht):
     kmer = min(max(1, kmer), 27)
     size = int(pow(bits, kmer)+1)
     breakpoint = 0
@@ -1953,7 +1953,8 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoin
         breakpoint = int(f.next())
         f.close()
         #kmer_dict = oaht(2**20, load_factor=.75)
-        kmer_dict = oamkht(2**20, load_factor=.75)
+        #kmer_dict = oamkht(2**20, load_factor=.75)
+        kmer_dict = hashfunc(2**30, load_factor=.75)
 
         print('rec is', rec, kmer_dict)
         kmer_dict.loading(rec)
@@ -1962,9 +1963,9 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoin
     elif kmer <= 13:
         kmer_dict = mmapht(size, 'int16')
     else:
-        kmer_dict = oaht(2**20, load_factor=.75)
+        #kmer_dict = oaht(2**20, load_factor=.75)
         #kmer_dict = oamkht(2**20, load_factor=.75)
-
+        kmer_dict = hashfunc(2**30, load_factor=.75)
 
     N = 0
 
