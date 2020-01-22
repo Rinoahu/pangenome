@@ -334,7 +334,7 @@ def memmap(fn, mode='w+', shape=None, dtype='int8'):
         stride = 1
     elif dtype == 'float16' or dtype == 'int16' or dtype == 'uint16':
         stride = 2
-    elif dtype == 'float32' or dtype == 'int32':
+    elif dtype == 'float32' or dtype == 'int32' or dtype == 'uint32':
         stride = 4
     else:
         stride = 8
@@ -358,7 +358,8 @@ def memmap(fn, mode='w+', shape=None, dtype='int8'):
 
     #print 'L', L
     buf = mmap.mmap(f.fileno(), L*stride, prot=mmap.ACCESS_WRITE)
-    return np.frombuffer(buf, dtype=dtype).reshape(shape), f
+    #return np.frombuffer(buf, dtype=dtype).reshape(shape), f
+    return np.frombuffer(buf, dtype=dtype), f
 
 primes = [4611686018427388039, 2305843009213693967, 1152921504606847009, 576460752303423619,
         288230376151711813, 144115188075855881, 72057594037928017, 36028797018963971, 18014398509482143, 
@@ -1221,11 +1222,12 @@ class oamkht:
         # re-hash
         if self.disk==False:
             # write old key and value to disk
-            keys_old, fk_old = memmap('tmp_key_old.npy', shape=mkey * N, dtype=self.ktype)
-            values_old, fv_old = memmap('tmp_val_old.npy', shape=N, dtype=self.vtype)
-            counts_old, fc_old = memmap('tmp_cnt_old.npy', shape=N, dtype='uint8')
+            keys_old, fk_old = memmap('tmp_key_old.npy', 'w+', shape=mkey * N, dtype=self.ktype)
+            values_old, fv_old = memmap('tmp_val_old.npy', 'w+', shape=N, dtype=self.vtype)
+            counts_old, fc_old = memmap('tmp_cnt_old.npy', 'w+', shape=N, dtype='uint8')
 
-            #iprint(keys_old.shape, self.keys.shape)
+            print(N, keys_old.shape, self.keys.shape, self.ktype)
+            print(N, values_old.shape, self.values.shape, self.vtype)
 
             keys_old[:] = self.keys
             values_old[:] = self.values
@@ -2248,9 +2250,9 @@ def entry_point(argv):
 
         # test 
         from random import randint
-        N = 10**6
+        N = 5*10**6
         mkey = 5
-        clf = oamkht(mkey=mkey)
+        clf = oamkht(mkey=mkey, val_type='uint32')
 
         if mkey>1:
             x = [tuple([randint(0, N) for tmp in range(mkey)]) for elem in xrange(N)]
@@ -2264,7 +2266,11 @@ def entry_point(argv):
                 val = min(255, i[0])
             except:
                 val = min(255, i)
-            clf[i] = min(255, val)
+            #clf[i] = min(255, val)
+            try:
+                clf[i] += 1
+            except:
+                clf[i] = 1
 
         flag = 0
         for i in x:
