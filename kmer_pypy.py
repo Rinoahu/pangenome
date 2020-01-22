@@ -1943,7 +1943,7 @@ def rec_bkt(f, seq_type):
     return 0
 
 # adding resume function
-def seq2dbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoint', saved='dBG_disk', hashfunc=oamkht):
+def seq2dbg2(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoint', saved='dBG_disk', hashfunc=oamkht):
     kmer = min(max(1, kmer), 27)
     size = int(pow(bits, kmer)+1)
     breakpoint = 0
@@ -2069,6 +2069,144 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoin
             break
 
     return kmer_dict
+
+
+# find weight for rDBG
+def seq2dbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoint', saved='dBG_disk', hashfunc=oamkht):
+    kmer = min(max(1, kmer), 27)
+    size = int(pow(bits, kmer)+1)
+    breakpoint = 0
+    if os.path.isfile(rec+'_seqs.txt'):
+        #breakpoint, kmer_dict =resume[:2]
+        f = open(rec + '_seqs.txt', 'r')
+        breakpoint = int(f.next())
+        f.close()
+        kmer_dict = hashfunc(2**20, load_factor=.75)
+
+        print('rec is', rec, kmer_dict)
+        kmer_dict.loading(rec)
+        print('the size oaht', len(kmer_dict))
+
+    elif kmer <= 13:
+        kmer_dict = mmapht(size, 'int16')
+    else:
+        kmer_dict = hashfunc(2**20, load_factor=.75)
+
+    N = 0
+    f = open(qry, 'r')
+    seq = f.read(10**6)
+    f.close()
+
+    if seq[0].startswith('>') or '\n>' in seq:
+        seq_type = 'fasta'
+    elif seq[0].startswith('@') or '\n@' in seq:
+        seq_type = 'fastq'
+    else:
+        seq_type = None
+
+    print('breakpoint is', breakpoint)
+    f = open(qry, 'r')
+    f.seek(breakpoint)
+    flag = 0
+    for i in SeqIO.parse(f, seq_type):
+        seq_fw = str(i.seq)
+        seq_rv = str(i.reverse_complement().seq)
+        for seq in [seq_fw, seq_rv]:
+            n = len(seq)
+            for k, hd, nt in seq2ns_(seq, kmer, bits):
+                h = lastc[ord(hd)] << offbit
+                d = lastc[ord(nt)]
+                try:
+                    kmer_dict[k] |= (h | d) 
+                except:
+                    kmer_dict[k] = (h | d)
+            N += n
+            flag += n
+
+        # save the breakpoint
+        if flag > chunk:
+            bkt = rec_bkt(f, seq_type)
+            print('breakpoint', bkt)
+            _o = open(dump+'_seqs.txt', 'w')
+            _o.write('%d'%bkt)
+            _o.close()
+            flag = 0
+            kmer_dict.dump(dump)
+
+        #print('N is', N)
+        if N > Ns:
+            break
+
+    # save the de bruijn graph to disk
+    kmer_dict.dump(saved)
+
+    f.close()
+
+    # get frequency
+    for i in kmer_dict:
+        print('key', i)
+        print('freq', n2k_(i, kmer))
+        print('#'*10)
+        print('size', len(kmer_dict), 'freq', n2k_(i, kmer), kmer_dict.get_count(i))
+        break
+
+    # find weight for rDBG
+    rdbg = oamkht(mkey=2, val_type='uint32')
+
+    N = 0
+    for i in SeqIO.parse(qry, seq_type):
+        seq_fw = str(i.seq)
+        for seq in [seq_fw]:
+            path_cmpr = []
+            path_rdbg = []
+            skip = p0 = p1 = 0
+            for k, hd, nt in seq2ns_(seq, kmer, bits):
+                if k == -1:
+                    continue
+                #if p0 > p1:
+                #    p1 += 1
+                #    #continue
+
+                if query(kmer_dict, k):
+                    path_rdbg.append(k)
+                    if p0 <= p1:
+                        path_cmpr.append(['p0', p0, 'p1', p1, 'skip', skip, hd, k, k, n2k_(k, K=kmer)])
+                        p0 += kmer + skip
+                        skip = 0
+                else:
+                    skip += 1
+                p1 += 1
+
+            # if path is empty, then sequence has non-repetitive k-mer, add the last k-mer to path
+            if not path_cmpr:
+                path_cmpr = [['p0', p0, 'p1', p1, 'skip', skip, hd, k, k, n2k_(k, K=kmer)]]
+
+            print(seq_fw[:27])
+            print('path', len(path_cmpr))
+            for ii in xrange(len(path_rdbg)-1):
+                n0, n1 = path_rdbg[ii:ii+2]
+                #print('edge %s %s'%(n0[9], n1[9]))
+                k12 = (n0, n1)
+                try:
+                    rdbg[k12] += 1
+                except:
+                    rdbg[k12] = 1
+
+            #print('>' + i.id)
+            #print(i.seq)
+            #print(path[:6])
+            n = len(seq)
+            #print('path', len(path), 'seq', len(seq_fw), n)
+        N += n
+        if N > Ns:
+            break
+
+    print('rdbg size', len(rdbg))
+    for k12 in rdbg:
+        n0, n1 = k12
+        print('edge', n0, n1, rdbg[k12])
+    return kmer_dict
+
 
 
 # print the manual
