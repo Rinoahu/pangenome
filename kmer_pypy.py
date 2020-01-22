@@ -1222,12 +1222,12 @@ class oamkht:
         # re-hash
         if self.disk==False:
             # write old key and value to disk
-            keys_old, fk_old = memmap('tmp_key_old.npy', 'w+', shape=mkey * N, dtype=self.ktype)
-            values_old, fv_old = memmap('tmp_val_old.npy', 'w+', shape=N, dtype=self.vtype)
-            counts_old, fc_old = memmap('tmp_cnt_old.npy', 'w+', shape=N, dtype='uint8')
+            keys_old, fk_old = memmap('tmp_key_old.npy', shape=mkey * N, dtype=self.ktype)
+            values_old, fv_old = memmap('tmp_val_old.npy', shape=N, dtype=self.vtype)
+            counts_old, fc_old = memmap('tmp_cnt_old.npy', shape=N, dtype='uint8')
 
-            print(N, keys_old.shape, self.keys.shape, self.ktype)
-            print(N, values_old.shape, self.values.shape, self.vtype)
+            #print(N, keys_old.shape, self.keys.shape, self.ktype)
+            #print(N, values_old.shape, self.values.shape, self.vtype)
 
             keys_old[:] = self.keys
             values_old[:] = self.values
