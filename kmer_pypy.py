@@ -2210,6 +2210,103 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoin
     return kmer_dict
 
 
+# convert sequences to paths and build the graph
+def seq2graph(qry, kmer=13, bits=5, Ns=1e6, saved=None, hashfunc=oamkht):
+    kmer = min(max(1, kmer), 27)
+    size = int(pow(bits, kmer)+1)
+    if kmer <= 13:
+        kmer_dict = mmapht(size, 'int16')
+    else:
+        kmer_dict = hashfunc(2**20, load_factor=.75)
+
+    # find the type of sequences
+    f = open(qry, 'r')
+    seq = f.read(10**6)
+    f.close()
+
+    if seq[0].startswith('>') or '\n>' in seq:
+        seq_type = 'fasta'
+    elif seq[0].startswith('@') or '\n@' in seq:
+        seq_type = 'fastq'
+    else:
+        seq_type = None
+
+    # load the graph on disk
+    dump_keys, dump_fk = memmap(saved + '_dump_key.npy', 'a+', dtype='uint64')
+    dump_values, dump_fv = memmap(saved + '_dump_val.npy', 'a+', dtype='uint16')
+    dump_counts, dump_fc = memmap(saved + '_dump_cnt.npy', 'a+', dtype='uint8')
+
+    for i in xrange(dump_values.shape[0]):
+        if query(dump_values, i):
+            key, val = dump_keys[i], dump_values[i]
+            kmer_dict[key] = val
+        #else:
+        #    print('dropped', i)
+    print('rdbg size', len(kmer_dict))
+
+    dump_fk.close()
+    dump_fv.close()
+    dump_fc.close()
+
+
+    # find weight for rDBG
+    rdbg = oamkht(mkey=2, val_type='uint32')
+
+    N = 0
+    for i in SeqIO.parse(qry, seq_type):
+        seq_fw = str(i.seq)
+        for seq in [seq_fw]:
+            path_cmpr = []
+            path_rdbg = []
+            skip = p0 = p1 = 0
+            for k, hd, nt in seq2ns_(seq, kmer, bits):
+                if k == -1:
+                    continue
+                #if p0 > p1:
+                #    p1 += 1
+                #    #continue
+
+                if query(kmer_dict, k):
+                    path_rdbg.append(k)
+                    if p0 <= p1:
+                        path_cmpr.append(['p0', p0, 'p1', p1, 'skip', skip, hd, k, k, n2k_(k, K=kmer)])
+                        p0 += kmer + skip
+                        skip = 0
+                else:
+                    skip += 1
+                p1 += 1
+
+            # if path is empty, then sequence has non-repetitive k-mer, add the last k-mer to path
+            if not path_cmpr:
+                path_cmpr = [['p0', p0, 'p1', p1, 'skip', skip, hd, k, k, n2k_(k, K=kmer)]]
+
+            print(seq_fw[:27])
+            print('path', len(path_cmpr))
+            for ii in xrange(len(path_rdbg)-1):
+                n0, n1 = path_rdbg[ii:ii+2]
+                #print('edge %s %s'%(n0[9], n1[9]))
+                k12 = (n0, n1)
+                try:
+                    rdbg[k12] += 1
+                except:
+                    rdbg[k12] = 1
+
+            #print('>' + i.id)
+            #print(i.seq)
+            #print(path[:6])
+            n = len(seq)
+            #print('path', len(path), 'seq', len(seq_fw), n)
+        N += n
+        if N > Ns:
+            break
+
+    print('rdbg size', len(rdbg))
+    for k12 in rdbg:
+        n0, n1 = k12
+        print('edge', n0, n1, rdbg[k12])
+    return kmer_dict
+
+
 
 # print the manual
 def manual_print():
@@ -2222,7 +2319,7 @@ def manual_print():
 
 def entry_point(argv):
 
-    args = {'-i': '', '-k': '50', '-n': '1000000', '-r': ''}
+    args = {'-i': '', '-k': '50', '-n': '1000000', '-r': '', '-d': ''}
     N = len(argv)
 
     for i in xrange(1, N):
@@ -2236,7 +2333,7 @@ def entry_point(argv):
             continue
 
     # bkt, the breakpoint
-    qry, kmer, Ns, bkt = args['-i'], int(args['-k']), int(eval(args['-n'])), args['-r']
+    qry, kmer, Ns, bkt, dbs = args['-i'], int(args['-k']), int(eval(args['-n'])), args['-r'], args['-d']
     if not qry:
         seq = 'ACCCATCGGGCTAAACCCCCCCCCCGATCGATCGAC'
         #seq = 'AAAAAAAAAAGAAAAAAAAAATAAAAAAAAAACAAAAAAAAAA'
@@ -2294,7 +2391,13 @@ def entry_point(argv):
         raise SystemExit()
 
     print('recover from', bkt)
-    dct = seq2dbg(qry, kmer, 5, Ns, rec=bkt)
+    if dbs:
+        # convert sequence to path and build the graph
+        dct = seq2graph(qry, kmer=kmer, bits=5, Ns=Ns, saved=dbs, hashfunc=oamkht)
+    else:
+        # build the rdbg, convert sequence to path, and build the graph
+        dct = seq2dbg(qry, kmer, 5, Ns, rec=bkt)
+
     return 0
     #return dct
 
