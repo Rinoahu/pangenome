@@ -2210,16 +2210,28 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoin
     return kmer_dict
 
 
-# convert sequences to paths and build the graph
-def seq2graph(qry, kmer=13, bits=5, Ns=1e6, saved=None, hashfunc=oamkht):
+# convert sequences to rdbg
+def seq2rdbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoint', saved='dBG_disk', hashfunc=oamkht):
     kmer = min(max(1, kmer), 27)
     size = int(pow(bits, kmer)+1)
-    if kmer <= 13:
+    breakpoint = 0
+    if os.path.isfile(rec+'_seqs.txt'):
+        #breakpoint, kmer_dict =resume[:2]
+        f = open(rec + '_seqs.txt', 'r')
+        breakpoint = int(f.next())
+        f.close()
+        kmer_dict = hashfunc(2**20, load_factor=.75)
+
+        print('rec is', rec, kmer_dict)
+        kmer_dict.loading(rec)
+        print('the size oaht', len(kmer_dict))
+
+    elif kmer <= 13:
         kmer_dict = mmapht(size, 'int16')
     else:
         kmer_dict = hashfunc(2**20, load_factor=.75)
 
-    # find the type of sequences
+    N = 0
     f = open(qry, 'r')
     seq = f.read(10**6)
     f.close()
@@ -2231,7 +2243,64 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, saved=None, hashfunc=oamkht):
     else:
         seq_type = None
 
-    # load the graph on disk
+    print('breakpoint is', breakpoint)
+    f = open(qry, 'r')
+    f.seek(breakpoint)
+    flag = 0
+    for i in SeqIO.parse(f, seq_type):
+        seq_fw = str(i.seq)
+        seq_rv = str(i.reverse_complement().seq)
+        for seq in [seq_fw, seq_rv]:
+            n = len(seq)
+            for k, hd, nt in seq2ns_(seq, kmer, bits):
+                h = lastc[ord(hd)] << offbit
+                d = lastc[ord(nt)]
+                try:
+                    kmer_dict[k] |= (h | d) 
+                except:
+                    kmer_dict[k] = (h | d)
+            N += n
+            flag += n
+
+        # save the breakpoint
+        if flag > chunk:
+            bkt = rec_bkt(f, seq_type)
+            print('breakpoint', bkt)
+            _o = open(dump+'_seqs.txt', 'w')
+            _o.write('%d'%bkt)
+            _o.close()
+            flag = 0
+            kmer_dict.dump(dump)
+
+        #print('N is', N)
+        if N > Ns:
+            break
+
+    # save the de bruijn graph to disk
+    kmer_dict.dump(saved)
+
+    f.close()
+    return kmer_dict
+
+
+# check sequence's type
+def seq_chk(qry):
+    f = open(qry, 'r')
+    seq = f.read(10**6)
+    f.close()
+
+    if seq[0].startswith('>') or '\n>' in seq:
+        seq_type = 'fasta'
+    elif seq[0].startswith('@') or '\n@' in seq:
+        seq_type = 'fastq'
+    else:
+        seq_type = None
+
+    return seq_type
+
+# load dbg on disk
+def load_dbg(saved, kmer_dict):
+
     dump_keys, dump_fk = memmap(saved + '_dump_key.npy', 'a+', dtype='uint64')
     dump_values, dump_fv = memmap(saved + '_dump_val.npy', 'a+', dtype='uint16')
     dump_counts, dump_fc = memmap(saved + '_dump_cnt.npy', 'a+', dtype='uint8')
@@ -2242,11 +2311,62 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, saved=None, hashfunc=oamkht):
             kmer_dict[key] = val
         #else:
         #    print('dropped', i)
-    print('rdbg size', len(kmer_dict))
+    # print('rdbg size', len(kmer_dict))
 
     dump_fk.close()
     dump_fv.close()
     dump_fc.close()
+
+    #return kmer_dict
+
+
+
+# convert sequences to paths and build the graph
+def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc=oamkht):
+
+    kmer = min(max(1, kmer), 27)
+    if kmer_dict != None:
+        saved = None
+    elif kmer <= 13:
+        size = int(pow(bits, kmer)+1)
+        kmer_dict = mmapht(size, 'int16')
+    else:
+        kmer_dict = hashfunc(2**20, load_factor=.75)
+
+    # find the type of sequences
+    #f = open(qry, 'r')
+    #seq = f.read(10**6)
+    #f.close()
+
+    #if seq[0].startswith('>') or '\n>' in seq:
+    #    seq_type = 'fasta'
+    #elif seq[0].startswith('@') or '\n@' in seq:
+    #    seq_type = 'fastq'
+    #else:
+    #    seq_type = None
+    seq_type = seq_chk(qry)
+
+    # load the graph on disk
+    if saved:
+        #print('before load', len(kmer_dict))
+        load_dbg(saved, kmer_dict)
+        #print('after load', len(kmer_dict))
+
+        #dump_keys, dump_fk = memmap(saved + '_dump_key.npy', 'a+', dtype='uint64')
+        #dump_values, dump_fv = memmap(saved + '_dump_val.npy', 'a+', dtype='uint16')
+        #dump_counts, dump_fc = memmap(saved + '_dump_cnt.npy', 'a+', dtype='uint8')
+
+        #for i in xrange(dump_values.shape[0]):
+        #    if query(dump_values, i):
+        #        key, val = dump_keys[i], dump_values[i]
+        #        kmer_dict[key] = val
+        #    #else:
+        #    #    print('dropped', i)
+        # print('rdbg size', len(kmer_dict))
+
+        #dump_fk.close()
+        #dump_fv.close()
+        #dump_fc.close()
 
 
     # find weight for rDBG
@@ -2280,8 +2400,8 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, saved=None, hashfunc=oamkht):
             if not path_cmpr:
                 path_cmpr = [['p0', p0, 'p1', p1, 'skip', skip, hd, k, k, n2k_(k, K=kmer)]]
 
-            print(seq_fw[:27])
-            print('path', len(path_cmpr))
+            #print(seq_fw[:27])
+            #print('path', len(path_cmpr))
             for ii in xrange(len(path_rdbg)-1):
                 n0, n1 = path_rdbg[ii:ii+2]
                 #print('edge %s %s'%(n0[9], n1[9]))
@@ -2300,10 +2420,20 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, saved=None, hashfunc=oamkht):
         if N > Ns:
             break
 
-    print('rdbg size', len(rdbg))
+    #print('rdbg size', len(rdbg))
+    _oname = qry + '_rdbg_weight.xyz'
+    _o = open(_oname, 'w')
     for k12 in rdbg:
         n0, n1 = k12
-        print('edge', n0, n1, rdbg[k12])
+        #print('edge', n0, n1, rdbg[k12])
+        xyz = '%d\t%d\t%d\n'%(n0, n1, rdbg[k12])
+        _o.write(xyz)
+
+    _o.close()
+
+    # call the mcl for cluster
+    os.system('mcl %s --abc -I 1.5 -te 8 -o %s.mcl'%(_oname, _oname))
+
     return kmer_dict
 
 
@@ -2390,8 +2520,8 @@ def entry_point(argv):
         print('y == 0', flag)
         raise SystemExit()
 
-    print('recover from', bkt)
     if dbs:
+        #print('recover from', bkt)
         # convert sequence to path and build the graph
         dct = seq2graph(qry, kmer=kmer, bits=5, Ns=Ns, saved=dbs, hashfunc=oamkht)
     else:
