@@ -2867,11 +2867,10 @@ def entry_point(argv):
         # build the rdbg, convert sequence to path, and build the graph
         #dct = seq2dbg(qry, kmer, 5, Ns, rec=bkt)
         kmer_dict = seq2rdbg(qry, kmer, 5, Ns, rec=bkt)
-        for i in kmer_dict:
-            print('kmer dict size', qry, len(kmer_dict), kmer, n2k_(i, kmer, 5))
-            if bkt:
-                print('bkt is', bkt)
-
+        #for i in kmer_dict:
+        #    print('kmer dict size', qry, len(kmer_dict), kmer, n2k_(i, kmer, 5))
+        #    if bkt:
+        #        print('bkt is', bkt)
         dct = seq2graph(qry, kmer=kmer, bits=5, Ns=Ns, kmer_dict=kmer_dict, hashfunc=oamkht)
 
     return 0
