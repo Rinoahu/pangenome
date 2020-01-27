@@ -1,15 +1,11 @@
 ## Introduction
-This is a graph-based method to find the frequency across species. The algorithm of the tool follows:
+This is a graph-based method to find the frequency across species. This method includes several steps:
 
-<!--1. Build a dBG
+1. Build a dBG
 2. Build reduced dBG by removing nodes with <= 1 indegree and outdegree in dBG
 3. Convert sequence to compressed path according to 2
 4. Remove weak edges in dBG and label each connect component of the rdBG
 5. label each sequence again
--->
-
-
-<!--First, it calls its own fast homologous protein searching tool to do a all-to-all homologous searching. Then, [orthomcl algorithm](https://docs.google.com/document/d/1RB-SqCjBmcpNq-YbOYdFxotHGuU7RK_wqxqDAMjyP_w/pub "https://docs.google.com/document/d/1RB-SqCjBmcpNq-YbOYdFxotHGuU7RK_wqxqDAMjyP_w/pub") is used to identify ortholog, inparalog and co-ortholog protein paris. Finally, [MCL](https://micans.org/mcl "https://micans.org/mcl") is used to group all the protein paris.-->
 
 ## Requirement
 
