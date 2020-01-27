@@ -2731,8 +2731,7 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
             if not path_cmpr:
                 path_cmpr = [[idx, k, hd, nt, n2k_(k, K=kmer)]]
 
-            print('path', path_cmpr)
-
+            #print('path', path_cmpr)
             visit = set()
             for ii in xrange(len(path_rdbg)-1):
                 n0, n1 = path_rdbg[ii:ii+2]
@@ -2816,7 +2815,7 @@ def entry_point(argv):
 
         # test 
         from random import randint
-        N = 10**7
+        N = 10**4
         mkey = 5
         clf = oamkht(mkey=mkey, val_type='uint32')
 
