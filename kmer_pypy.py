@@ -586,6 +586,8 @@ class mmapht:
         self.counts, self.fc = memmap(fn+'_counts.npy', shape=size, dtype='uint8')
         self.fn = fn
         self.dtype = dtype
+        self.values[:] = 0
+        self.counts[:] = 0
 
     def __getitem__(self, key):
         return self.values[key]
@@ -593,18 +595,19 @@ class mmapht:
     def get_count(self, key):
         return self.counts[key]
 
-
     def __setitem__(self, key, value):
         self.values[key] = value
+        #print('key', key, bin(value))
         count = self.counts[key]
         self.counts[key] = min(count+1, 255)
 
     def __iter__(self):
         for i in xrange(len(self.values)):
-            yield i
+            if self.counts[i] > 0:
+                yield i
 
     def __len__(self):
-        return len(self.values)
+        return (self.values != -1).sum()
 
     def dump(self, saved='dBG_disk'):
         self.fp.close()
@@ -1174,7 +1177,7 @@ class oaht:
 
 
 # support multiple key
-class oamkht:
+class oamkht0:
     def __init__(self, capacity=1024, load_factor = .75, mkey=1, key_type='uint64', val_type='uint16', disk=False):
 
         self.primes = [elem for elem in primes if elem > capacity]
@@ -1214,7 +1217,6 @@ class oamkht:
                 if k0[i+s0] != k1[i+s1]:
                     return False
             return True
-
 
     def resize(self):
         N = self.capacity
@@ -1496,6 +1498,343 @@ class oamkht:
         #print('loading length', map(len, [dump_keys, dump_values, dump_counts]))
         self.size = sum(self.keys[:: self.mkey] != self.null)
 
+
+class oamkht:
+    def __init__(self, capacity=1024, load_factor = .75, mkey=1, key_type='uint64', val_type='uint16', disk=False):
+
+        self.primes = [elem for elem in primes if elem > capacity]
+        self.capacity = self.primes.pop()
+        # load factor is 2/3
+        self.load = load_factor
+        self.size = 0
+        #self.null = 2**64-1
+        self.ktype = key_type
+        self.vtype = val_type
+        self.disk = disk
+        self.radius = 0
+        self.mkey = mkey
+        # for big, my own mmap based array can be used
+        N = self.capacity
+
+        # enable disk based hash
+        if self.disk:
+            self.keys, self.fk = memmap('tmp_key.npy', shape=mkey*N, dtype=key_type)
+            self.values, self.fv = memmap('tmp_val.npy', shape=N, dtype=val_type)
+            self.counts, self.fc = memmap('tmp_cnt.npy', shape=N, dtype='uint8')
+
+        else:
+            self.keys = np.empty(mkey * N, dtype=key_type)
+            self.values = np.empty(N, dtype=val_type)
+            self.counts = np.empty(N, dtype='uint8')
+
+        #self.keys[::mkey] = self.null
+        self.counts[:] = 0
+
+    # whether key0 == key1
+    def eq(self, k0, s0, k1, s1, N):
+        if N == 1:
+            return k0[s0] == k1
+        else:
+            for i in xrange(N):
+                if k0[i+s0] != k1[i+s1]:
+                    return False
+            return True
+
+    def resize(self):
+        N = self.capacity
+        mkey = self.mkey
+        # re-hash
+        if self.disk == False:
+            # write old key and value to disk
+            keys_old, fk_old = memmap('tmp_key_old.npy', shape=mkey * N, dtype=self.ktype)
+            values_old, fv_old = memmap('tmp_val_old.npy', shape=N, dtype=self.vtype)
+            counts_old, fc_old = memmap('tmp_cnt_old.npy', shape=N, dtype='uint8')
+
+            #print(N, keys_old.shape, self.keys.shape, self.ktype)
+            #print(N, values_old.shape, self.values.shape, self.vtype)
+
+            keys_old[:] = self.keys
+            values_old[:] = self.values
+            counts_old[:] =  self.counts
+
+            fk_old.close()
+            fv_old.close()
+            fc_old.close()
+
+            keys_old, fk_old = memmap('tmp_key_old.npy', 'a+', shape=mkey * N, dtype=self.ktype)
+            values_old,fv_old = memmap('tmp_val_old.npy', 'a+', shape=N, dtype=self.vtype)
+            counts_old,fc_old = memmap('tmp_cnt_old.npy', 'a+', shape=N, dtype='uint8')
+
+            del self.keys, self.values, self.counts
+            gc.collect()
+
+        else:
+            keys_old, values_old, counts_old = self.keys, self.values, self.counts
+ 
+        M = self.primes.pop()
+        #print('resize from %d to %d, size %d'%(N, M, self.size))
+        #null = self.null
+        if self.disk:
+            keys, fk = memmap('tmp_key0.npy', shape=mkey * M, dtype=self.ktype)
+            values, fv = memmap('tmp_val0.npy', shape=M, dtype=self.vtype)
+            counts, fc = memmap('tmp_cnt0.npy', shape=M, dtype='uint8')
+
+        else:
+            #print('extend array in ram')
+            keys = np.empty(mkey * M, dtype=self.ktype)
+            values = np.empty(M, dtype=self.vtype)
+            counts = np.empty(M, dtype='uint8')
+
+        #keys[::mkey] = null
+        # set count to 0
+        counts[:] = 0
+        self.capacity = M
+        self.radius = 0
+
+        for i in xrange(N):
+            #key = keys_old[:, i]
+            im = i * mkey
+
+            if mkey > 1:
+                key = tuple(keys_old[im: im+mkey])
+            #    key0 = counts_old[i]
+            #else:
+            #    key0 = key = keys_old[im]
+
+            #if key0 != null:
+            if counts_old[i] > 0:
+                value = values_old[i]
+                count = counts_old[i]
+                # new hash
+                j, k = hash(key) % M, 0
+
+                j_init = j
+                #while key != keys[j] != null:
+                for k in xrange(N):
+                #for k in itertools.count(0):
+                    jm = j * mkey
+                    #if keys[jm] == null or all(keys[jm:jm+mkey] == key):
+                    #if keys[jm] == null or self.eq(keys, jm, key, 0, mkey):
+                    if counts[j] == 0 or self.eq(keys, jm, key, 0, mkey) :
+                        break
+
+                    j = (j_init + k * k) % M
+                    #k += 1
+                    #mx_sum += 1
+
+                self.radius = max(k, self.radius)
+                #keys[:, j] = key
+                jm = j * mkey
+                keys[jm: jm+mkey] = key
+                #print('resize', jm, M, keys[jm], key)
+                values[j] = value
+                counts[j] = count
+
+                #if i % 10**5 == 0:
+                #    print('resize iter', i, mx_sum)
+
+            else:
+                continue
+
+        if self.disk:
+            # change name
+            self.fk.close()
+            self.fv.close()
+            self.fc.close()
+
+            os.system('mv tmp_key0.npy tmp_key.npy')
+            os.system('mv tmp_val0.npy tmp_val.npy')
+            os.system('mv tmp_cnt0.npy tmp_cnt.npy')
+
+            fk.close()
+            fv.close()
+            fc.close()
+
+            self.keys, self.fk = memmap('tmp_key.npy', 'a+', shape=mkey*M, dtype=self.ktype)
+            self.values, self.fv = memmap('tmp_val.npy', 'a+', shape=M, dtype=self.vtype)
+            self.counts, self.fc = memmap('tmp_cnt.npy', 'a+', shape=M, dtype='uint8')
+
+        else:
+            self.keys = keys
+            self.values = values
+            self.counts = counts
+
+        del keys_old, values_old, counts_old
+
+        if self.disk == False:
+            fk_old.close()
+            fv_old.close()
+            fc_old.close()
+            os.system('rm tmp_key_old.npy tmp_val_old.npy tmp_cnt_old.npy')
+
+        gc.collect()
+
+    def pointer(self, key):
+        mkey = self.mkey
+        M = self.capacity
+        #null = self.null
+
+        if mkey > 1:
+            key = tuple(key)
+
+        j, k = hash(key) % M, 0
+        k = 0
+        j_init = j
+        #while null != self.keys[j] != key:
+        for k in xrange(M):
+        #for k in itertools.count(0):
+            jm = j * mkey
+            #if all(self.keys[jm:jm+mkey] == key) or self.keys[jm] == null:
+            #if self.eq(self.keys, jm, key, 0, mkey) or self.keys[jm] == null:
+            if self.eq(self.keys, jm, key, 0, mkey) or self.counts[j] == 0:
+                break
+
+            #k += 1
+            j = (j_init + k * k) % M
+
+        self.radius = max(k, self.radius)
+
+        return j
+
+
+    def __setitem__(self, key, value):
+        j = self.pointer(key)
+        mkey = self.mkey
+        jm = mkey * j
+        #if self.keys[jm] == self.null:
+        if self.counts[j] == 0:
+            self.size += 1
+            #print('before set', self.keys[jm: jm+mkey], key)
+            self.keys[jm:jm+mkey] = key
+            #print('after set', self.keys[jm: jm+mkey], key)
+            #self.counts[j] = 0
+
+        self.values[j] = value
+        #count = self.counts[j]
+        #self.counts[j] = min(count + 1, 255)
+        self.counts[j] = min(self.counts[j] + 1, 255)
+
+        # if too many elements
+        if self.size * 1. / self.capacity > self.load:
+            self.resize()
+            #print('resize')
+
+    def __getitem__(self, key):
+        j = self.pointer(key)
+        #print('key', key, 'target', j, self.keys[j])
+        mkey = self.mkey
+        jm = j * mkey
+        #if all(key == self.keys[jm: jm+mkey]):
+        #if self.eq(key, 0, self.keys, jm, mkey):
+        if self.eq(self.keys, jm, key, 0, mkey):
+            return self.values[j]
+        else:
+            raise KeyError
+
+    def get_count(self, key):
+        j = self.pointer(key)
+        mkey = self.mkey
+        jm = j * mkey
+        #if all(key == self.keys[jm: jm+mkey]):
+        #print(key, 0, self.keys[:2], jm, mkey)
+        #if self.eq(key, 0, self.keys, jm, mkey):
+        if self.eq(self.keys, jm, key, 0, mkey):
+            return self.counts[j]
+        else:
+            return 0
+
+
+    def __delitem__(self, key):
+        j = self.pointer(key)
+        mkey = self.mkey
+        jm = j * mkey
+        #if all(key == self.keys[jm: jm+mkey]):
+        #if self.eq(key, 0, self.keys, jm, mkey):
+        if self.eq(self.keys, jm, key, 0, mkey):
+            #self.keys[jm] = self.null
+            self.counts[j] = 0
+            self.size -= 1
+        else:
+            raise KeyError
+
+    def has_key(self, key):
+        j = self.pointer(key)
+        mkey = self.mkey
+        jm = j * mkey
+        #return all(key == self.keys[jm:jm+mkey])
+        #return self.eq(key, 0, self.keys, jm, mkey)
+        #print('has key', jm, self.capacity, self.keys[jm], key)
+        return self.eq(self.keys, jm, key, 0, mkey)
+   
+
+    def __iter__(self):
+        #null = self.null
+        #for i in self.keys:
+        #    if i != null:
+        #        yield int(i)
+        mkey = self.mkey
+        if mkey > 1:
+            #for i in xrange(0, self.keys.shape[0], mkey):
+            for i in xrange(0, self.counts.shape[0]):
+                im = i * mkey
+                #if self.keys[i] != null:
+                if self.counts[i] > 0:
+                    #yield self.keys[i:i+mkey]
+                    yield self.keys[im:im+mkey]
+        else:
+            #for i in xrange(0, self.keys.shape[0]):
+            for i in xrange(0, self.counts.shape[0]):
+                #if self.keys[i] != null:
+                if self.counts[i] > 0:
+                    yield self.keys[i]
+ 
+    def __len__(self):
+        return self.size
+
+    # save hash table to disk
+    def dump(self, fname):
+        M = self.keys.shape
+        key_type, val_type = self.ktype, self.vtype
+        dump_keys, dump_fk = memmap(fname + '_dump_key.npy', shape=M, dtype=key_type)
+        dump_keys[:] = self.keys
+        dump_fk.close()
+
+        N = self.values.shape
+        dump_values, dump_fv = memmap(fname + '_dump_val.npy', shape=N, dtype=val_type)
+        dump_values[:] = self.values
+        dump_fv.close()
+
+        dump_counts, dump_fc = memmap(fname + '_dump_cnt.npy', shape=N, dtype='uint8')
+        dump_counts[:] = self.counts
+        dump_fc.close()
+
+    # load hash table from disk
+    def loading(self, fname):
+
+        key_type, val_type = self.ktype, self.vtype
+
+        dump_keys, dump_fk = memmap(fname + '_dump_key.npy', 'a+', dtype=key_type)
+        self.keys = np.array(dump_keys)
+        dump_fk.close()
+
+        dump_values, dump_fv = memmap(fname + '_dump_val.npy', 'a+', dtype=val_type)
+        self.values = np.array(dump_values)
+        dump_fv.close()
+
+        dump_counts, dump_fc = memmap(fname + '_dump_cnt.npy', 'a+', dtype='uint8')
+        self.counts = np.array(dump_counts)
+        dump_fc.close()
+
+        self.mkey = len(self.keys) // len(self.values)
+
+        capacity  = len(self.counts)
+        self.primes = [elem for elem in primes if elem >= capacity]
+        self.capacity = self.primes.pop()
+
+        #print('loading length', map(len, [dump_keys, dump_values, dump_counts]))
+        #self.size = sum(self.keys[:: self.mkey] != self.null)
+        self.size = (self.counts > 0).sum()
+
 # combine several dict
 class mdict:
     def __init__(self, capacities=1024, load_factor=.75, key_type='uint64', val_type='uint16', fuc=oaht, bucket=32):
@@ -1647,7 +1986,7 @@ def seq2ns_0(seq, k=12, bit=5):
     yield Nu, hd, '$'
 
 
-def seq2ns_(seq, k=12, bit=5):
+def seq2ns_0(seq, k=12, bit=5):
     n = len(seq)
     if n > k:
         Nu = k2n_(seq[:k])
@@ -1675,6 +2014,39 @@ def seq2ns_(seq, k=12, bit=5):
     else:
         yield -1, '#', '$'
 
+
+
+def seq2ns_(seq, k=12, bit=5):
+    n = len(seq)
+    if n > k:
+        Nu = k2n_(seq[:k])
+        #yield Nu, '0', seq[k]
+        #print('len', n, 'kmer', k)
+        idx = 0
+        yield idx, Nu, '#', seq[k]
+        idx += 1
+
+        shift = bit ** (k - 1)
+        for i in xrange(k, n-1):
+            cc = alpha[ord(seq[i])]
+            Nu = Nu // bit + cc * shift
+            # find head and next char
+            hd = seq[i-k]
+            nc = seq[i+1]
+            yield idx, Nu, hd, nc
+            idx += 1
+
+        cc = alpha[ord(seq[i+1])]
+        Nu = Nu // bit + cc * shift
+        hd = seq[i-k]
+        yield idx, Nu, hd, '$'
+
+    elif n == k:
+        #yield -1, '0', '0'
+        yield 0, k2n_(seq), '#', '$'
+    else:
+        yield 0, -1, '#', '$'
+
 # bisect based query
 # xs is the sorted array
 # x is the query
@@ -1682,7 +2054,7 @@ def query0(xs, x):
     idx = bisect_left(xs, x)
     return x in xs[idx:idx+1]
 
-# check node exist
+# check how many indegree and outdegree a node has
 def query(ht, i):
     try:
         hn = ht[i]
@@ -1692,6 +2064,7 @@ def query(ht, i):
     if hn > 0:
         pr = nbit(hn >> offbit)
         sf = nbit(hn & lowbit)
+        #print('pr', pr, 'sf', sf)
         if pr == sf == 1 and sf != 0b100000:
             return False
         else:
@@ -1725,7 +2098,7 @@ def seq2dbg0(qry, kmer=13, bits=5, Ns=1e6):
         #itr = 0
         for seq in [seq_fw, seq_rv]:
             n = len(seq)
-            for k, hd, nt in seq2ns_(seq, kmer, bits):
+            for idx, k, hd, nt in seq2ns_(seq, kmer, bits):
                 #if k == -1:
                 #    continue
                 #km = n2k_(k, kmer)
@@ -1803,7 +2176,7 @@ def seq2dbg0(qry, kmer=13, bits=5, Ns=1e6):
         #for seq in [seq_fw, seq_rv]:
         for seq in [seq_fw]:
             skip = p0 = p1 = 0
-            for k, hd, nt in seq2ns_(seq, kmer, bits):
+            for idx, k, hd, nt in seq2ns_(seq, kmer, bits):
                 if k == -1:
                     continue
                 #idx = bisect_left(dbg, k)
@@ -1877,7 +2250,7 @@ def seq2dbg1(qry, kmer=13, bits=5, Ns=1e6):
         seq_rv = str(i.reverse_complement().seq)
         for seq in [seq_fw, seq_rv][:1]:
             n = len(seq)
-            for k, hd, nt in seq2ns_(seq, kmer, bits):
+            for idx, k, hd, nt in seq2ns_(seq, kmer, bits):
                 h = lastc[ord(hd)] << offbit
                 d = lastc[ord(nt)]
                 try:
@@ -1899,7 +2272,7 @@ def seq2dbg1(qry, kmer=13, bits=5, Ns=1e6):
         path = []
         for seq in [seq_fw]:
             skip = p0 = p1 = 0
-            for k, hd, nt in seq2ns_(seq, kmer, bits):
+            for idx, k, hd, nt in seq2ns_(seq, kmer, bits):
                 if k == -1:
                     continue
                 if p0 > p1:
@@ -1993,7 +2366,7 @@ def seq2dbg2(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoi
         seq_rv = str(i.reverse_complement().seq)
         for seq in [seq_fw, seq_rv]:
             n = len(seq)
-            for k, hd, nt in seq2ns_(seq, kmer, bits):
+            for idx, k, hd, nt in seq2ns_(seq, kmer, bits):
                 h = lastc[ord(hd)] << offbit
                 d = lastc[ord(nt)]
                 try:
@@ -2035,7 +2408,7 @@ def seq2dbg2(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoi
         path = []
         for seq in [seq_fw]:
             skip = p0 = p1 = 0
-            for k, hd, nt in seq2ns_(seq, kmer, bits):
+            for idx, k, hd, nt in seq2ns_(seq, kmer, bits):
                 if k == -1:
                     continue
                 if p0 > p1:
@@ -2115,7 +2488,7 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoin
         seq_rv = str(i.reverse_complement().seq)
         for seq in [seq_fw, seq_rv]:
             n = len(seq)
-            for k, hd, nt in seq2ns_(seq, kmer, bits):
+            for idx, k, hd, nt in seq2ns_(seq, kmer, bits):
                 h = lastc[ord(hd)] << offbit
                 d = lastc[ord(nt)]
                 try:
@@ -2162,7 +2535,7 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoin
             path_cmpr = []
             path_rdbg = []
             skip = p0 = p1 = 0
-            for k, hd, nt in seq2ns_(seq, kmer, bits):
+            for idx, k, hd, nt in seq2ns_(seq, kmer, bits):
                 if k == -1:
                     continue
                 #if p0 > p1:
@@ -2210,79 +2583,6 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoin
     return kmer_dict
 
 
-# convert sequences to rdbg
-def seq2rdbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoint', saved='dBG_disk', hashfunc=oamkht):
-    kmer = min(max(1, kmer), 27)
-    size = int(pow(bits, kmer)+1)
-    breakpoint = 0
-    if os.path.isfile(rec+'_seqs.txt'):
-        #breakpoint, kmer_dict =resume[:2]
-        f = open(rec + '_seqs.txt', 'r')
-        breakpoint = int(f.next())
-        f.close()
-        kmer_dict = hashfunc(2**20, load_factor=.75)
-
-        print('rec is', rec, kmer_dict)
-        kmer_dict.loading(rec)
-        print('the size oaht', len(kmer_dict))
-
-    elif kmer <= 13:
-        kmer_dict = mmapht(size, 'int16')
-    else:
-        kmer_dict = hashfunc(2**20, load_factor=.75)
-
-    N = 0
-    f = open(qry, 'r')
-    seq = f.read(10**6)
-    f.close()
-
-    if seq[0].startswith('>') or '\n>' in seq:
-        seq_type = 'fasta'
-    elif seq[0].startswith('@') or '\n@' in seq:
-        seq_type = 'fastq'
-    else:
-        seq_type = None
-
-    print('breakpoint is', breakpoint)
-    f = open(qry, 'r')
-    f.seek(breakpoint)
-    flag = 0
-    for i in SeqIO.parse(f, seq_type):
-        seq_fw = str(i.seq)
-        seq_rv = str(i.reverse_complement().seq)
-        for seq in [seq_fw, seq_rv]:
-            n = len(seq)
-            for k, hd, nt in seq2ns_(seq, kmer, bits):
-                h = lastc[ord(hd)] << offbit
-                d = lastc[ord(nt)]
-                try:
-                    kmer_dict[k] |= (h | d) 
-                except:
-                    kmer_dict[k] = (h | d)
-            N += n
-            flag += n
-
-        # save the breakpoint
-        if flag > chunk:
-            bkt = rec_bkt(f, seq_type)
-            print('breakpoint', bkt)
-            _o = open(dump+'_seqs.txt', 'w')
-            _o.write('%d'%bkt)
-            _o.close()
-            flag = 0
-            kmer_dict.dump(dump)
-
-        #print('N is', N)
-        if N > Ns:
-            break
-
-    # save the de bruijn graph to disk
-    kmer_dict.dump(saved)
-
-    f.close()
-    return kmer_dict
-
-
 # check sequence's type
 def seq_chk(qry):
     f = open(qry, 'r')
@@ -2319,6 +2619,71 @@ def load_dbg(saved, kmer_dict):
 
     #return kmer_dict
 
+# convert sequences to rdbg
+def seq2rdbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoint', saved='dBG_disk', hashfunc=oamkht):
+    kmer = min(max(1, kmer), 27)
+    size = int(pow(bits, kmer)+1)
+    breakpoint = 0
+    if os.path.isfile(rec+'_seqs.txt'):
+        #breakpoint, kmer_dict =resume[:2]
+        f = open(rec + '_seqs.txt', 'r')
+        breakpoint = int(f.next())
+        f.close()
+        kmer_dict = hashfunc(2**20, load_factor=.75)
+        print('rec is', rec, kmer_dict)
+        kmer_dict.loading(rec)
+        print('the size oaht', len(kmer_dict))
+        #print('wocaonima')
+
+    elif kmer <= 13:
+        kmer_dict = mmapht(size, 'int16')
+        #print('wocaonima')
+
+    else:
+        kmer_dict = hashfunc(2**20, load_factor=.75)
+  
+    print('rdbg size', len(kmer_dict))
+
+    seq_type = seq_chk(qry)
+    N = 0
+    print('breakpoint is', breakpoint)
+    f = open(qry, 'r')
+    f.seek(breakpoint)
+    flag = 0
+    for i in SeqIO.parse(f, seq_type):
+        seq_fw = str(i.seq)
+        seq_rv = str(i.reverse_complement().seq)
+        for seq in [seq_fw, seq_rv]:
+            n = len(seq)
+            for idx, k, hd, nt in seq2ns_(seq, kmer, bits):
+                h = lastc[ord(hd)] << offbit
+                d = lastc[ord(nt)]
+                try:
+                    kmer_dict[k] |= (h | d) 
+                except:
+                    kmer_dict[k] = (h | d)
+            N += n
+            flag += n
+
+        # save the breakpoint
+        if flag > chunk:
+            bkt = rec_bkt(f, seq_type)
+            print('breakpoint', bkt)
+            _o = open(dump+'_seqs.txt', 'w')
+            _o.write('%d'%bkt)
+            _o.close()
+            flag = 0
+            kmer_dict.dump(dump)
+
+        #print('N is', N)
+        if N > Ns:
+            break
+
+    # save the de bruijn graph to disk
+    kmer_dict.dump(saved)
+
+    f.close()
+    return kmer_dict
 
 
 # convert sequences to paths and build the graph
@@ -2341,49 +2706,42 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
         #print('before load', len(kmer_dict))
         load_dbg(saved, kmer_dict)
 
+    print('kmer_dict of size', len(kmer_dict), saved)
     # find weight for rDBG
     rdbg = oamkht(mkey=2, val_type='uint32')
-
     N = 0
     for i in SeqIO.parse(qry, seq_type):
         seq_fw = str(i.seq)
         for seq in [seq_fw]:
             path_cmpr = []
             path_rdbg = []
-            skip = p0 = p1 = 0
-            for k, hd, nt in seq2ns_(seq, kmer, bits):
+            idx_prev = -1
+            for idx, k, hd, nt in seq2ns_(seq, kmer, bits):
                 if k == -1:
                     continue
-                #if p0 > p1:
-                #    p1 += 1
-                #    #continue
 
                 if query(kmer_dict, k):
                     path_rdbg.append(k)
-                    if p0 <= p1:
-                        path_cmpr.append(['p0', p0, 'p1', p1, 'skip', skip, hd, k, k, n2k_(k, K=kmer)])
-                        p0 += kmer + skip
-                        skip = 0
-                else:
-                    skip += 1
-                p1 += 1
+                    if idx_prev == -1 or idx_prev + kmer <= idx:
+                        path_cmpr.append([idx, k, hd, nt, n2k_(k, K=kmer)])
+                        idx_prev = idx
 
             # if path is empty, then sequence has non-repetitive k-mer, add the last k-mer to path
             if not path_cmpr:
-                path_cmpr = [['p0', p0, 'p1', p1, 'skip', skip, hd, k, k, n2k_(k, K=kmer)]]
+                path_cmpr = [[idx, k, hd, nt, n2k_(k, K=kmer)]]
 
-            #print(seq_fw[:27])
-            #print('path', len(path_cmpr))
+            print('path', path_cmpr)
+
             visit = set()
             for ii in xrange(len(path_rdbg)-1):
                 n0, n1 = path_rdbg[ii:ii+2]
-                #print('edge %s %s'%(n0[9], n1[9]))
                 k12 = (n0, n1)
 
                 # remove the repeat in the same sequences
                 if k12 not in visit:
                     visit.add(k12)
                 else:
+                    #print('repeat', n2k_(n0, kmer, 5), n2k_(n1, kmer, 5))
                     continue
 
                 try:
@@ -2400,7 +2758,7 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
         if N > Ns:
             break
 
-    #print('rdbg size', len(rdbg))
+    print('rdbg size', len(rdbg))
     _oname = qry + '_rdbg_weight.xyz'
     _o = open(_oname, 'w')
     for k12 in rdbg:
@@ -2457,7 +2815,7 @@ def entry_point(argv):
 
         # test 
         from random import randint
-        N = 5*10**6
+        N = 10**7
         mkey = 5
         clf = oamkht(mkey=mkey, val_type='uint32')
 
@@ -2506,7 +2864,14 @@ def entry_point(argv):
         dct = seq2graph(qry, kmer=kmer, bits=5, Ns=Ns, saved=dbs, hashfunc=oamkht)
     else:
         # build the rdbg, convert sequence to path, and build the graph
-        dct = seq2dbg(qry, kmer, 5, Ns, rec=bkt)
+        #dct = seq2dbg(qry, kmer, 5, Ns, rec=bkt)
+        kmer_dict = seq2rdbg(qry, kmer, 5, Ns, rec=bkt)
+        for i in kmer_dict:
+            print('kmer dict size', qry, len(kmer_dict), kmer, n2k_(i, kmer, 5))
+            if bkt:
+                print('bkt is', bkt)
+
+        dct = seq2graph(qry, kmer=kmer, bits=5, Ns=Ns, kmer_dict=kmer_dict, hashfunc=oamkht)
 
     return 0
     #return dct
