@@ -2334,40 +2334,12 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
         kmer_dict = hashfunc(2**20, load_factor=.75)
 
     # find the type of sequences
-    #f = open(qry, 'r')
-    #seq = f.read(10**6)
-    #f.close()
-
-    #if seq[0].startswith('>') or '\n>' in seq:
-    #    seq_type = 'fasta'
-    #elif seq[0].startswith('@') or '\n@' in seq:
-    #    seq_type = 'fastq'
-    #else:
-    #    seq_type = None
     seq_type = seq_chk(qry)
 
     # load the graph on disk
     if saved:
         #print('before load', len(kmer_dict))
         load_dbg(saved, kmer_dict)
-        #print('after load', len(kmer_dict))
-
-        #dump_keys, dump_fk = memmap(saved + '_dump_key.npy', 'a+', dtype='uint64')
-        #dump_values, dump_fv = memmap(saved + '_dump_val.npy', 'a+', dtype='uint16')
-        #dump_counts, dump_fc = memmap(saved + '_dump_cnt.npy', 'a+', dtype='uint8')
-
-        #for i in xrange(dump_values.shape[0]):
-        #    if query(dump_values, i):
-        #        key, val = dump_keys[i], dump_values[i]
-        #        kmer_dict[key] = val
-        #    #else:
-        #    #    print('dropped', i)
-        # print('rdbg size', len(kmer_dict))
-
-        #dump_fk.close()
-        #dump_fv.close()
-        #dump_fc.close()
-
 
     # find weight for rDBG
     rdbg = oamkht(mkey=2, val_type='uint32')
@@ -2402,10 +2374,18 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
 
             #print(seq_fw[:27])
             #print('path', len(path_cmpr))
+            visit = set()
             for ii in xrange(len(path_rdbg)-1):
                 n0, n1 = path_rdbg[ii:ii+2]
                 #print('edge %s %s'%(n0[9], n1[9]))
                 k12 = (n0, n1)
+
+                # remove the repeat in the same sequences
+                if k12 not in visit:
+                    visit.add(k12)
+                else:
+                    continue
+
                 try:
                     rdbg[k12] += 1
                 except:
