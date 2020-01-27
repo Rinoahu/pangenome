@@ -1597,9 +1597,10 @@ class oamkht:
 
             if mkey > 1:
                 key = tuple(keys_old[im: im+mkey])
-            #    key0 = counts_old[i]
-            #else:
-            #    key0 = key = keys_old[im]
+                #key0 = counts_old[i]
+            else:
+                key = keys_old[im]
+                #key0 = key = keys_old[im]
 
             #if key0 != null:
             if counts_old[i] > 0:
