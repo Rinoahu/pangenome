@@ -2741,7 +2741,6 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
                 if k12 not in visit:
                     visit.add(k12)
                 else:
-                    #print('repeat', n2k_(n0, kmer, 5), n2k_(n1, kmer, 5))
                     continue
 
                 try:
@@ -2749,11 +2748,7 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
                 except:
                     rdbg[k12] = 1
 
-            #print('>' + i.id)
-            #print(i.seq)
-            #print(path[:6])
             n = len(seq)
-            #print('path', len(path), 'seq', len(seq_fw), n)
         N += n
         if N > Ns:
             break
@@ -2772,8 +2767,31 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
     # call the mcl for cluster
     os.system('mcl %s --abc -I 1.5 -te 8 -o %s.mcl'%(_oname, _oname))
 
-    return kmer_dict
+    # load the cluster
+    label_dct = oamkht(2 ** 20, val_type='int32')
+    flag = 0
+    f = open(_oname+'.mcl', 'r')
+    for i in f:
+        j = i[:-1].split('\t')
+        for k in j:
+            label_dct[int(k)] = flag
+        flag += 1
 
+    f.close()
+
+    #print('flag is', flag)
+    for i in SeqIO.parse(qry, seq_type):
+        seq_fw = str(i.seq)
+        for seq in [seq_fw]:
+            path_cmpr = []
+            idx_prev = -1
+            for idx, k, hd, nt in seq2ns_(seq, kmer, bits):
+                if label_dct.has_key(k):
+                    path_cmpr.append([idx, label_dct[k]])
+
+            print('label', path_cmpr)
+
+    return kmer_dict
 
 
 # print the manual
