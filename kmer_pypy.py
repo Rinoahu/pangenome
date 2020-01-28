@@ -2740,8 +2740,8 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
 
             #print('path', path_cmpr)
             visit = set()
-            for ii in xrange(len(path_rdbg)-1):
-                n0, n1 = path_rdbg[ii:ii+2]
+            for idx in xrange(len(path_rdbg)-1):
+                n0, n1 = path_rdbg[idx:idx+2]
                 k12 = (n0, n1)
 
                 # remove the repeat in the same sequences
@@ -2771,13 +2771,15 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
 
     _o.close()
 
-    # call the mcl for cluster
+    # call the mcl for clustering
     os.system('mcl %s --abc -I 1.5 -te 8 -o %s.mcl'%(_oname, _oname))
 
+    del rdbg
+    del kmer_dict
+    gc.collect()
+
     # load the cluster
-    #label_dct = oamkht(2 ** 20, val_type='int32')
-    kmer_dict.clear()
-    label_dct = kmer_dict
+    label_dct = oamkht(2 ** 20, val_type='int32')
     flag = 0
     f = open(_oname+'.mcl', 'r')
     for i in f:
@@ -2788,19 +2790,62 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
 
     f.close()
 
-    #print('flag is', flag)
+    # add the rest kmer
+    f = open(_oname, 'r')
+    for i in f:
+        j, k = i[:-1].split('\t')[:2]
+        if not label_dct.has_key(j):
+            label_dct[j] = flag
+            flag += 1
+
+        if not label_dct.has_key(j):
+            label_dct[k] = flag
+            flag += 1
+
+    N = 0
+    print('label_dct', len(label_dct))
     for i in SeqIO.parse(qry, seq_type):
+        #print('id', i.id)
         seq_fw = str(i.seq)
         for seq in [seq_fw]:
-            path_cmpr = []
-            idx_prev = -1
+            starts = [0]
+            labels = [-1]
+            #idx_pre, label_pre = 0, -1
             for idx, k, hd, nt in seq2ns_(seq, kmer, bits):
                 if label_dct.has_key(k):
-                    path_cmpr.append([idx, label_dct[k]])
+                    label = label_dct[k]
+                    #if idx_pre + kmer > idx:
+                    if starts[-1] == 0:
+                        if starts[-1] != idx:
+                            starts.append(idx)
+                            labels.append(label)
 
-            print('label', path_cmpr)
+                    elif starts[-1] + kmer > idx:
+                        continue
 
-    return kmer_dict
+                    elif labels[-1] != label:
+                        labels.append(label)
+                        starts.append(idx)
+                    else:
+                        starts[-1] = idx
+                        #idx_pre = idx
+
+            print('starts', len(starts), starts[:5])
+            #print('%s\t%d\t%d\t%s\t%d'%(i.id, 0, starts[0], '+', labels[0]))
+            for idx in xrange(1, len(starts)):
+                print('%s\t%d\t%d\t%s\t%d'%(i.id, starts[idx-1], starts[idx], '+', labels[idx]))
+                #print('%s\t%d\t%d\%s\%d'%(i.id, start, end, '+', label))
+
+        N += len(seq_fw)
+        if N > Ns:
+            break
+
+    #return kmer_dict
+    return label_dct
+
+# recover the sequence from the compressed path
+def recover(path, dbg):
+    pass
 
 
 # print the manual
