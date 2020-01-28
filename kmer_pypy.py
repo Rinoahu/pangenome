@@ -2716,7 +2716,7 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
 
     print('kmer_dict of size', len(kmer_dict), saved)
     # find weight for rDBG
-    rdbg = oamkht(mkey=2, val_type='uint32')
+    rdbg = oamkht(mkey=4, val_type='uint32')
     N = 0
     for i in SeqIO.parse(qry, seq_type):
         seq_fw = str(i.seq)
@@ -2729,7 +2729,7 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
                     continue
 
                 if query(kmer_dict, k):
-                    path_rdbg.append(k)
+                    path_rdbg.append([k, hd, nt])
                     if idx_prev == -1 or idx_prev + kmer <= idx:
                         path_cmpr.append([idx, k, hd, nt, n2k_(k, K=kmer)])
                         idx_prev = idx
@@ -2741,8 +2741,16 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
             #print('path', path_cmpr)
             visit = set()
             for idx in xrange(len(path_rdbg)-1):
-                n0, n1 = path_rdbg[idx:idx+2]
-                k12 = (n0, n1)
+                #n0, n1 = path_rdbg[idx:idx+2]
+                n0, hd0, nt0 = path_rdbg[idx]
+                h0 = lastc[ord(hd0)] << offbit
+                d0 = lastc[ord(nt0)]
+ 
+                n1, hd1, nt1 = path_rdbg[idx+1]
+                h1 = lastc[ord(hd1)] << offbit
+                d1 = lastc[ord(nt1)]
+ 
+                k12 = (n0, h0|d0, n1, h1|d1)
 
                 # remove the repeat in the same sequences
                 if k12 not in visit:
@@ -2764,9 +2772,10 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
     _oname = qry + '_rdbg_weight.xyz'
     _o = open(_oname, 'w')
     for k12 in rdbg:
-        n0, n1 = k12
-        #print('edge', n0, n1, rdbg[k12])
-        xyz = '%d\t%d\t%d\n'%(n0, n1, rdbg[k12])
+        #n0, n1 = k12
+        n0, hd0, n1, hd1 = k12
+        #xyz = '%d\t%d\t%d\n'%(n0, n1, rdbg[k12])
+        xyz = '%d_%d\t%d_%d\t%d\n'%(n0, hd0, n1, hd1, rdbg[k12])
         _o.write(xyz)
 
     _o.close()
@@ -2779,13 +2788,18 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
     gc.collect()
 
     # load the cluster
-    label_dct = oamkht(2 ** 20, val_type='int32')
+    #label_dct = oamkht(2 ** 20, val_type='int32')
+    label_dct = oamkht(2 ** 20, mkey=2, val_type='int32')
+
     flag = 0
     f = open(_oname+'.mcl', 'r')
     for i in f:
         j = i[:-1].split('\t')
         for k in j:
-            label_dct[int(k)] = flag
+            ky = tuple(map(int, k.split('_')[:2]))
+            #label_dct[int(k)] = flag
+            label_dct[ky] = flag
+
         flag += 1
 
     f.close()
@@ -2794,12 +2808,19 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
     f = open(_oname, 'r')
     for i in f:
         j, k = i[:-1].split('\t')[:2]
-        if not label_dct.has_key(j):
-            label_dct[j] = flag
+
+        kj = tuple(map(int, j.split('_')[:2]))
+        #if not label_dct.has_key(j):
+        if not label_dct.has_key(kj):
+            #label_dct[j] = flag
+            label_dct[kj] = flag
             flag += 1
 
-        if not label_dct.has_key(j):
-            label_dct[k] = flag
+        kk = tuple(map(int, k.split('_')[:2]))
+        #if not label_dct.has_key(j):
+        if not label_dct.has_key(kk):
+            #label_dct[k] = flag
+            label_dct[kk] = flag
             flag += 1
 
     N = 0
@@ -2812,8 +2833,15 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
             labels = [-1]
             #idx_pre, label_pre = 0, -1
             for idx, k, hd, nt in seq2ns_(seq, kmer, bits):
-                if label_dct.has_key(k):
-                    label = label_dct[k]
+
+                h = lastc[ord(hd)] << offbit
+                d = lastc[ord(nt)]
+                kk = (k, h|d)
+ 
+                #if label_dct.has_key(k):
+                if label_dct.has_key(kk):
+                    #label = label_dct[k]
+                    label = label_dct[kk]
                     #if idx_pre + kmer > idx:
                     if starts[-1] == 0:
                         if starts[-1] != idx:
