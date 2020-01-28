@@ -890,6 +890,9 @@ class oaht:
 
         self.keys[:] = self.null
 
+    # clear the dict
+    def clear(self):
+        self.keys[:] = self.null
 
     def resize(self):
         N = self.capacity
@@ -1528,6 +1531,10 @@ class oamkht:
             self.counts = np.empty(N, dtype='uint8')
 
         #self.keys[::mkey] = self.null
+        self.counts[:] = 0
+
+    # clear the dict
+    def clear(self):
         self.counts[:] = 0
 
     # whether key0 == key1
@@ -2768,7 +2775,9 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
     os.system('mcl %s --abc -I 1.5 -te 8 -o %s.mcl'%(_oname, _oname))
 
     # load the cluster
-    label_dct = oamkht(2 ** 20, val_type='int32')
+    #label_dct = oamkht(2 ** 20, val_type='int32')
+    kmer_dict.clear()
+    label_dct = kmer_dict
     flag = 0
     f = open(_oname+'.mcl', 'r')
     for i in f:
