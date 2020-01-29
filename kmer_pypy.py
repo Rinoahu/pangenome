@@ -2939,26 +2939,37 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
                 if label_dct.has_key(kk):
                     #label = label_dct[k]
                     label = label_dct[kk]
-                    #if idx_pre + kmer > idx:
-                    if starts[-1] == 0:
-                        if starts[-1] != idx:
-                            #starts.append(idx)
-                            starts.append(idx+kmer)
+                    if starts[-1] < idx:
+
+                        # find different conserved region
+                        if labels[-1] != label:
                             labels.append(label)
+                            starts.append(idx+kmer)
+                        # the same region, just extend it.
+                        else:
+                            starts[-1] = idx + kmer
+
+                    #if idx_pre + kmer > idx:
+                    #if starts[-1] == 0:
+                    #    if starts[-1] != idx:
+                    #        #starts.append(idx)
+                    #        starts.append(idx+kmer)
+                    #        labels.append(label)
 
                     #elif starts[-1] + kmer > idx:
-                    elif starts[-1] > idx:
-                        continue
+                    #elif starts[-1] > idx:
+                    #if starts[-1] > idx:
+                    #    continue
 
-                    elif labels[-1] != label:
-                        labels.append(label)
-                        #starts.append(idx)
-                        starts.append(idx+kmer)
+                    #elif labels[-1] != label:
+                    #    labels.append(label)
+                    #    #starts.append(idx)
+                    #    starts.append(idx+kmer)
 
-                    else:
-                        starts[-1] = idx
-                        starts[-1] = idx + kmer
-                        #idx_pre = idx
+                    #else:
+                    #    #starts[-1] = idx
+                    #    starts[-1] = idx + kmer
+                    #    #idx_pre = idx
 
             print('starts', len(starts), starts[:5], labels[:5], len(seq))
             #print('%s\t%d\t%d\t%s\t%d'%(i.id, 0, starts[0], '+', labels[0]))
