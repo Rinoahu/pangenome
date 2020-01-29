@@ -2141,24 +2141,21 @@ def seqio(fn):
     f.close()
 
 
-#tab_rev = {'A': 'T', 'a': 'T', 'T':'A', 't': 'A', 'G':'C', 'g': 'C', 'C':'G', 'c':'G'}
-
 # reverse the sequence
-#def reverse(seq, tab_rev=tab_rev):
-#    seq_rv = [tab_rev.get(elem, 'N') for elem in seq]
-#    seq_rv.reverse()
-#    return ''.join(seq_rv)
-
-tab_rev = ['N']*256
-for i, j in zip('atgc', 'TACG'):
-    tab_rev[ord(i)] = j
-    tab_rev[ord(i.upper())] = j
-
+tab_rev = {'A': 'T', 'a': 'T', 'T':'A', 't': 'A', 'G':'C', 'g': 'C', 'C':'G', 'c':'G'}
 def reverse(seq, tab_rev=tab_rev):
-    seq_rv = [tab_rev[ord(elem)] for elem in seq]
+    seq_rv = [tab_rev.get(elem, 'N') for elem in seq]
     seq_rv.reverse()
     return ''.join(seq_rv)
 
+#tab_rev = ['N']*256
+#for i, j in zip('atgc', 'TACG'):
+#    tab_rev[ord(i)] = j
+#    tab_rev[ord(i.upper())] = j
+#def reverse(seq, tab_rev=tab_rev):
+#    seq_rv = [tab_rev[ord(elem)] for elem in seq]
+#    seq_rv.reverse()
+#    return ''.join(seq_rv)
 
 # function to compress genome sequence
 def seq2dbg0(qry, kmer=13, bits=5, Ns=1e6):
