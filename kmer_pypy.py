@@ -23,6 +23,8 @@ try:
 except:
     xrange = range
 
+
+
 def isprime(n) : 
     if n <= 1 or n % 2 == 0 or n % 3 == 0: 
         return False
@@ -48,8 +50,6 @@ def prime_list(n):
                 break
     out.reverse()
     return out
-
-
 
 # blist in pure python
 rng = lambda x: (((x * 279470273) % 4294967291) * 279470273) % 4294967291
@@ -2081,6 +2081,74 @@ def query(ht, i):
         return False
 
 
+# check sequence's type
+def seq_chk(qry):
+    f = open(qry, 'r')
+    seq = f.read(2*20)
+    f.close()
+
+    if seq[0].startswith('>') or '\n>' in seq:
+        seq_type = 'fasta'
+    elif seq[0].startswith('@') or '\n@' in seq:
+        seq_type = 'fastq'
+    else:
+        seq_type = None
+
+    return seq_type
+
+
+# parse a file in the fasta/fastq format
+def seqio(fn):
+    # determine the sequences type
+    seq_type = seq_chk(fn) 
+
+    f = open(fn, 'r')
+    if seq_type == 'fasta':
+        head, seq = '', []
+        for i in f:
+            i = i.strip()
+            if i.startswith('>'):
+                if len(seq) > 0:
+                    yield head, ''.join(seq)
+                head = i[1:]
+                seq = []
+            else:
+                seq.append(i)
+
+        if len(seq) > 0:
+            yield head, ''.join(seq)
+
+    elif seq_type == 'fastq':
+        head, seq = '', ''
+        flag = 0
+        for i in f:
+            i = i.strip()
+            if i.startswith('@'):
+                head = i
+                flag = 1
+            elif flag == 1:
+                seq = i
+                yield head, seq
+                flag = 0
+            else:
+                continue
+        #if seq:
+        #    yield head, ''.join(seq)
+
+    else:
+        raise SystemExit()
+
+    f.close()
+
+
+tab_rev = {'A': 'T', 'a': 'T', 'T':'A', 't': 'A', 'G':'C', 'g': 'C', 'C':'G', 'c':'G'}
+# reverse the sequence
+def reverse(seq, tab_rev=tab_rev):
+    seq_rv = [tab_rev.get(elem, 'N') for elem in seq]
+    seq_rv.reverse()
+    return ''.join(seq_rv)
+
+
 
 # function to compress genome sequence
 def seq2dbg0(qry, kmer=13, bits=5, Ns=1e6):
@@ -2098,9 +2166,12 @@ def seq2dbg0(qry, kmer=13, bits=5, Ns=1e6):
     #    kmer_dict[i] = i
 
     N = 0
-    for i in SeqIO.parse(qry, 'fasta'):
-        seq_fw = str(i.seq)
-        seq_rv = str(i.reverse_complement().seq)
+    #for i in SeqIO.parse(qry, 'fasta'):
+    for header, sq in seqio(qry):
+        #seq_fw = str(i.seq)
+        seq_fw = sq
+        #seq_rv = str(i.reverse_complement().seq)
+        seq_rv = reverse(sq)
         #print('seq', seq_fw[:10], seq_rv[:10])
 
         #itr = 0
@@ -2177,8 +2248,11 @@ def seq2dbg0(qry, kmer=13, bits=5, Ns=1e6):
     dbg.sort()
     #raise SystemExit()
     N = 0
-    for i in SeqIO.parse(qry, 'fasta'):
-        seq_fw = str(i.seq)
+    #for i in SeqIO.parse(qry, 'fasta'):
+    for header, sq in seqio(qry, 'fasta'):
+        #seq_fw = str(i.seq)
+        seq_fw = sq
+
         path = []
         #print('seq', seq_fw)
         #for seq in [seq_fw, seq_rv]:
@@ -2253,9 +2327,13 @@ def seq2dbg1(qry, kmer=13, bits=5, Ns=1e6):
 
     #print('input sequence is', seq_type, seq[:100])
 
-    for i in SeqIO.parse(qry, seq_type):
-        seq_fw = str(i.seq)
-        seq_rv = str(i.reverse_complement().seq)
+    #for i in SeqIO.parse(qry, seq_type):
+    for header, sq in seqio(qry):
+        #seq_fw = str(i.seq)
+        #seq_rv = str(i.reverse_complement().seq)
+        seq_fw = sq
+        seq_rv = reverse(sq)
+ 
         for seq in [seq_fw, seq_rv][:1]:
             n = len(seq)
             for idx, k, hd, nt in seq2ns_(seq, kmer, bits):
@@ -2275,8 +2353,10 @@ def seq2dbg1(qry, kmer=13, bits=5, Ns=1e6):
     #    print('freq', n2k_(i, kmer), kmer_dict.get_count(i))
 
     N = 0
-    for i in SeqIO.parse(qry, seq_type):
-        seq_fw = str(i.seq)
+    #for i in SeqIO.parse(qry, seq_type):
+    for header, sq in seqio(qry, seq_type):
+        #seq_fw = str(i.seq)
+        seq_fw = sq
         path = []
         for seq in [seq_fw]:
             skip = p0 = p1 = 0
@@ -2369,9 +2449,13 @@ def seq2dbg2(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoi
     f.seek(breakpoint)
     flag = 0
     #for i in SeqIO.parse(qry, seq_type):
-    for i in SeqIO.parse(f, seq_type):
-        seq_fw = str(i.seq)
-        seq_rv = str(i.reverse_complement().seq)
+    #    seq_fw = str(i.seq)
+    #    seq_rv = str(i.reverse_complement().seq)
+
+    for header, sq in seqio(qry):
+        seq_fw = sq
+        seq_rv = reverse(sq)
+ 
         for seq in [seq_fw, seq_rv]:
             n = len(seq)
             for idx, k, hd, nt in seq2ns_(seq, kmer, bits):
@@ -2411,8 +2495,11 @@ def seq2dbg2(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoi
         break
 
     N = 0
-    for i in SeqIO.parse(qry, seq_type):
-        seq_fw = str(i.seq)
+    #for i in SeqIO.parse(qry, seq_type):
+    #    seq_fw = str(i.seq)
+    for header, sq in seqio(qry):
+        seq_fw = sq
+
         path = []
         for seq in [seq_fw]:
             skip = p0 = p1 = 0
@@ -2491,9 +2578,14 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoin
     f = open(qry, 'r')
     f.seek(breakpoint)
     flag = 0
-    for i in SeqIO.parse(f, seq_type):
-        seq_fw = str(i.seq)
-        seq_rv = str(i.reverse_complement().seq)
+    #for i in SeqIO.parse(f, seq_type):
+    #    seq_fw = str(i.seq)
+    #    seq_rv = str(i.reverse_complement().seq)
+
+    for header, sq in seqio(qry):
+        seq_fw = sq
+        seq_rv = reverse(sq)
+ 
         for seq in [seq_fw, seq_rv]:
             n = len(seq)
             for idx, k, hd, nt in seq2ns_(seq, kmer, bits):
@@ -2537,8 +2629,12 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoin
     rdbg = oamkht(mkey=2, val_type='uint32')
 
     N = 0
-    for i in SeqIO.parse(qry, seq_type):
-        seq_fw = str(i.seq)
+    #for i in SeqIO.parse(qry, seq_type):
+    #    seq_fw = str(i.seq)
+
+    for header, sq in seqio(qry):                                                                                           
+        seq_fw = sq
+
         for seq in [seq_fw]:
             path_cmpr = []
             path_rdbg = []
@@ -2591,21 +2687,6 @@ def seq2dbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoin
     return kmer_dict
 
 
-# check sequence's type
-def seq_chk(qry):
-    f = open(qry, 'r')
-    seq = f.read(10**6)
-    f.close()
-
-    if seq[0].startswith('>') or '\n>' in seq:
-        seq_type = 'fasta'
-    elif seq[0].startswith('@') or '\n@' in seq:
-        seq_type = 'fastq'
-    else:
-        seq_type = None
-
-    return seq_type
-
 # load dbg on disk
 def load_dbg(saved, kmer_dict):
 
@@ -2652,15 +2733,22 @@ def seq2rdbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoi
   
     print('rdbg size', len(kmer_dict))
 
-    seq_type = seq_chk(qry)
+    #seq_type = seq_chk(qry)
+
     N = 0
     print('breakpoint is', breakpoint)
     f = open(qry, 'r')
     f.seek(breakpoint)
     flag = 0
-    for i in SeqIO.parse(f, seq_type):
-        seq_fw = str(i.seq)
-        seq_rv = str(i.reverse_complement().seq)
+
+    #for i in SeqIO.parse(f, seq_type):
+    #    seq_fw = str(i.seq)
+    #    seq_rv = str(i.reverse_complement().seq)
+
+    for header, sq in seqio(qry):                                                                                           
+        seq_fw = sq
+        seq_rv = reverse(sq)
+
         for seq in [seq_fw, seq_rv]:
             n = len(seq)
             for idx, k, hd, nt in seq2ns_(seq, kmer, bits):
@@ -2707,7 +2795,7 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
         kmer_dict = hashfunc(2**20, load_factor=.75)
 
     # find the type of sequences
-    seq_type = seq_chk(qry)
+    #seq_type = seq_chk(qry)
 
     # load the graph on disk
     if saved:
@@ -2718,8 +2806,13 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
     # find weight for rDBG
     rdbg = oamkht(mkey=4, val_type='uint32')
     N = 0
-    for i in SeqIO.parse(qry, seq_type):
-        seq_fw = str(i.seq)
+
+    #for i in SeqIO.parse(qry, seq_type):
+    #    seq_fw = str(i.seq)
+
+    for header, sq in seqio(qry):
+        seq_fw = sq
+
         for seq in [seq_fw]:
             path_cmpr = []
             path_rdbg = []
@@ -2825,9 +2918,13 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
 
     N = 0
     print('label_dct', len(label_dct))
-    for i in SeqIO.parse(qry, seq_type):
-        #print('id', i.id)
-        seq_fw = str(i.seq)
+    #for i in SeqIO.parse(qry, seq_type):
+    #    #print('id', i.id)
+    #    seq_fw = str(i.seq)
+
+    for header, sq in seqio(qry):                                                                                           
+        seq_fw = sq
+
         for seq in [seq_fw]:
             starts = [0]
             labels = [-1]
@@ -2845,23 +2942,29 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
                     #if idx_pre + kmer > idx:
                     if starts[-1] == 0:
                         if starts[-1] != idx:
-                            starts.append(idx)
+                            #starts.append(idx)
+                            starts.append(idx+kmer)
                             labels.append(label)
 
-                    elif starts[-1] + kmer > idx:
+                    #elif starts[-1] + kmer > idx:
+                    elif starts[-1] > idx:
                         continue
 
                     elif labels[-1] != label:
                         labels.append(label)
-                        starts.append(idx)
+                        #starts.append(idx)
+                        starts.append(idx+kmer)
+
                     else:
                         starts[-1] = idx
+                        starts[-1] = idx + kmer
                         #idx_pre = idx
 
-            print('starts', len(starts), starts[:5])
+            print('starts', len(starts), starts[:5], labels[:5], len(seq))
             #print('%s\t%d\t%d\t%s\t%d'%(i.id, 0, starts[0], '+', labels[0]))
             for idx in xrange(1, len(starts)):
-                print('%s\t%d\t%d\t%s\t%d'%(i.id, starts[idx-1], starts[idx], '+', labels[idx]))
+                print('%s\t%d\t%d\t%s\t%d'%(header.split(' ')[0], starts[idx-1], starts[idx], '+', labels[idx]))
+                #print('%s\t%d\t%d\t%s\t%d'%(i.id, starts[idx-1], starts[idx], '+', labels[idx]))
                 #print('%s\t%d\t%d\%s\%d'%(i.id, start, end, '+', label))
 
         N += len(seq_fw)
