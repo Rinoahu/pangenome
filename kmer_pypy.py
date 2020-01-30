@@ -2735,9 +2735,9 @@ def seq2rdbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoi
         breakpoint = int(f.next())
         f.close()
         kmer_dict = hashfunc(2**20, load_factor=.75)
-        print('rec is', rec, kmer_dict)
+        #print('rec is', rec, kmer_dict)
         kmer_dict.loading(rec)
-        print('the size oaht', len(kmer_dict))
+        #print('the size oaht', len(kmer_dict))
         #print('wocaonima')
 
     elif kmer <= 13:
@@ -2818,7 +2818,7 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
         #print('before load', len(kmer_dict))
         load_dbg(saved, kmer_dict)
 
-    print('kmer_dict of size', len(kmer_dict), saved)
+    #print('kmer_dict of size', len(kmer_dict), saved)
     # find weight for rDBG
     rdbg = oamkht(mkey=4, val_type='uint32')
     N = 0
@@ -2877,7 +2877,7 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
         if N > Ns:
             break
 
-    print('rdbg size', len(rdbg))
+    #print('rdbg size', len(rdbg))
     _oname = qry + '_rdbg_weight.xyz'
     _o = open(_oname, 'w')
     for k12 in rdbg:
@@ -2987,7 +2987,7 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
                     #    starts[-1] = idx + kmer
                     #    #idx_pre = idx
 
-            print('starts', len(starts), starts[:5], labels[:5], len(seq))
+            #print('starts', len(starts), starts[:5], labels[:5], len(seq))
             #print('%s\t%d\t%d\t%s\t%d'%(i.id, 0, starts[0], '+', labels[0]))
             for idx in xrange(1, len(starts)):
                 #print('%s\t%d\t%d\t%s\t%d'%(header.split(' ')[0], starts[idx-1], starts[idx], '+', labels[idx]))
