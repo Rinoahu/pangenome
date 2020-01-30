@@ -2,10 +2,10 @@
 This is a graph-based method to find the frequency across species. This method includes several steps:
 
 1. Build a dBG
-2. Build reduced dBG by removing nodes with <= 1 indegree and outdegree in dBG
-3. Convert sequence to compressed path according to 2
-4. Remove weak edges in dBG and label each connect component of the rdBG
-5. label each sequence again
+2. Build the reduced dBG by removing nodes with <= 1 indegree and outdegree in dBG.
+3. Convert sequence to compressed path according to 2.
+4. Remove weak edges in rdBG and index the connect components in rdBG.
+5. label each sequence again.
 
 ## Requirement
 
