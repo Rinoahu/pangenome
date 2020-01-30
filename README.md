@@ -40,8 +40,11 @@ Make sure that you have the following installed
 
 ## Result
 The result is a tab-seperated file.
+
 The 1st column is the sequence identifier.
+
 The 2-4 columns are the start, end, and strand of the conversed region.
+
 The 5th column is the index of the conserved region.
 
     For example:
