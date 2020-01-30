@@ -30,12 +30,12 @@ Make sure that you have the following installed
 
 
 ## Usage
-$pypy pangenome/kmer_pypy.py -m -i input.fasta -k 27 > output
+    $pypy pangenome/kmer_pypy.py -m -i input.fasta -k 27 > result.tab
 
 
--i: genome sequences in fasta format.
+    -i: genome sequences in fasta format.
 
--k: the kmer size.
+    -k: the kmer size.
 
 
 ## Result
