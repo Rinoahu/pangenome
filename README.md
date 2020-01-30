@@ -35,7 +35,7 @@ Make sure that you have the following installed
 
     -i: genome sequences in fasta format.
 
-    -k: the kmer size. Currently, the kmer size is limited to 27.
+    -k: the kmer size. Currently, the kmer size is limited to 27, we will remove the limitation in the future.
 
 
 ## Result
