@@ -40,9 +40,22 @@ Make sure that you have the following installed
 
 ## Result
 The result is a tab-seperated file.
-The 1st column is the sequence identifier
-The 2nd and 3rd columns are the start and end posistion
-The 4th column is the index of the conserved region.
+The 1st column is the sequence identifier.
+The 2-4 columns are the start, end, and strand of the conversed region.
+The 5th column is the index of the conserved region.
+
+For example:
+Chr1       0       3250    +       340
+Chr1       3250    6851    +       41
+Chr1       6851    7420    +       18344
+Chr1       7420    7661    +       25920
+Chr1       7661    7811    +       36243
+Chr1       7811    8015    +       15344
+Chr1       8015    8071    +       16029
+Chr1       8071    8105    +       35682
+Chr1       8105    9779    +       49500
+Chr1       9779    9806    +       7184
+
 
 
 ## Citation
