@@ -3348,13 +3348,20 @@ def entry_point(argv):
             spec['value'] = nb.int64
             spec['count'] = nb.uint8
             oakht_jit = jitclass(spec)(oakht)
-            clf = oakht_jit(ksize=mkey)
+            clf = oakht_jit(capacity=2*10**8, ksize=mkey)
+
+            print('initial finish')
+            #while 1:
+            #    pass
+            #raise SystemExit()
 
             @njit
             def oa_test(N, k, clf):
-                x = np.random.randint(0, N, N)
+                #x = np.random.randint(0, N, N)
                 for i in range(N-k+1):
-                    clf.push(x[i:i+k], i)
+                    #x = np.random.randint(0, N, k)
+                    #clf.push(x[i:i+k], i)
+                    clf.push(np.random.randint(0, N, k), i)
 
             print('numba version')
             oa_test(10**8, mkey, clf)

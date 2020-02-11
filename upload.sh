@@ -7,7 +7,7 @@ git config --global user.name Rinoahu
 git remote rm origin
 
 git add -A .
-git commit -m 'add numba jitclass-based hash table'
+git commit -m 'seperate numba jitclass version from pure python'
 git remote add origin https://github.com/Rinoahu/pangenome
 
 git pull origin master
