@@ -65,41 +65,18 @@ def memmap(fn, mode='w+', shape=None, dtype='int8'):
     return np.frombuffer(buf, dtype=dtype), f
 
 # jit version
-'''
-spec = {}
-spec['capacity'] = nb.int64
-spec['load'] = nb.float32
-spec['size'] = nb.int64
-spec['ksize'] = nb.int64
-spec['keys'] = nb.uint64[:]
-spec['values'] = nb.int64[:]
-spec['counts'] = nb.uint8[:]
-spec['key'] = nb.uint64
-spec['value'] = nb.int64
-spec['count'] = nb.uint8
-'''
-#@jitclass(spec)
 class oakht:
-    #def __init__(self, capacity=1024, load_factor = .75, ksize=1, key_type='uint64', val_type='uint16'):
-    def __init__(self, capacity=1024, load_factor = .75, ksize=1):
+    def __init__(self, capacity=1024, load_factor = .75, ksize=1, ktype=nb.int64, vtype=nb.int64):
 
         self.capacity = self.find_prime(capacity)
         self.load = load_factor
         self.size = 0
-        #self.ktype = key_type
-        #self.vtype = val_type
         self.ksize = ksize
         N = self.capacity
 
-        self.keys = np.empty(ksize * N, dtype=nb.int64)
-        self.values = np.empty(N, dtype=nb.int64)
+        self.keys = np.empty(N * ksize, dtype=ktype)
+        self.values = np.empty(N, dtype=vtype)
         self.counts = np.zeros(N, dtype=nb.uint8)
-
-        #self.keys = np.empty(ksize * N, dtype=np.int64)
-        #self.values = np.empty(N, dtype=np.int64)
-        #self.counts = np.zeros(N, dtype=np.uint8)
-
-
 
     # check a num is prime
     def isprime(self, n) : 
@@ -157,13 +134,9 @@ class oakht:
         self.capacity = self.find_prime(np.int64(N * 1.62))
         M = self.capacity
 
-        keys = np.empty(M * ks, dtype=nb.int64)
-        values = np.empty(M, dtype=nb.int64)
-        counts = np.zeros(M, dtype=nb.uint8)
-
-        #keys = np.empty(M * ks, dtype=np.int64)
-        #values = np.empty(M, dtype=np.int64)
-        #counts = np.zeros(M, dtype=np.uint8)
+        keys = np.empty(M * ks, dtype=keys_old.dtype)
+        values = np.empty(M, dtype=values_old.dtype)
+        counts = np.zeros(M, dtype=counts_old.dtype)
 
         for i in xrange(N):
             if counts_old[i] > 0:
@@ -171,9 +144,7 @@ class oakht:
                 count = counts_old[i]
                 ik = i * ks
                 # new hash
-                #j, k = hash(key) % M, 0
                 j, k = self.hash_(keys_old, ik, ks) % M, 0
-
                 j_init = j
                 for k in xrange(N):
                     jk = j * ks
@@ -230,8 +201,9 @@ class oakht:
 
         # if too many elements
         if self.size * 1. / self.capacity > self.load:
-            print('resize', self.size, self.capacity)
+            a, b =  self.size, self.capacity
             self.resize()
+            print('before resize', a, b, 'after resize', self.size, self.capacity)
 
     def __setitem__(self, key, value, start=0):
         self.push(key, value, start)
@@ -256,7 +228,6 @@ class oakht:
             return self.counts[j]
         else:
             return 0
-
 
     def __delitem__(self, key, start=0):
         j = self.pointer(key)
@@ -284,12 +255,18 @@ class oakht:
     def __iter__(self):
         self.iterkeys()
 
+    def itervalues(self):
+        for i in xrange(0, self.counts.shape[0]):
+            if self.counts[i] > 0:
+                yield self.values[i]
+
+
     def iteritems(self):
         ks = self.ksize
         for i in xrange(0, self.counts.shape[0]):
             ik = i * ks
             if self.counts[i] > 0:
-                yield self.values[ik:ik+ks]
+                yield self.keys[ik:ik+ks], self.values[i]
 
     def len(self):
         return self.size
@@ -1548,28 +1525,54 @@ def entry_point(argv):
 
         mkey = 5
         print('test', N)
+
+        # the spec for jitclass
         spec = {}
         spec['capacity'] = nb.int64
         spec['load'] = nb.float32
         spec['size'] = nb.int64
         spec['ksize'] = nb.int64
-        spec['keys'] = nb.uint64[:]
-        spec['values'] = nb.int64[:]
+        spec['ktype'] = nb.uint64
+        spec['keys'] = spec['ktype'][:]
+        spec['vtype'] = nb.uint32
+        spec['values'] = spec['vtype'][:]
         spec['counts'] = nb.uint8[:]
-        spec['key'] = nb.uint64
-        spec['value'] = nb.int64
-        spec['count'] = nb.uint8
+   
         oakht_jit = jitclass(spec)(oakht)
-        clf = oakht_jit(capacity=int(N * 1.75), ksize=mkey)
+        clf = oakht_jit(capacity=N, ksize=mkey, ktype=spec['ktype'], vtype=spec['vtype'])
+        #clf = oakht_jit(capacity=int(N * 1.75), ksize=mkey, ktype=spec['ktype'], vtype=spec['vtype'])
 
         print('initial finish')
         @njit
         def oa_test(N, k, clf):
-            #x = np.random.randint(0, N, N)
+            x = np.random.randint(0, N, N)
             for i in range(N-k+1):
-                #x = np.random.randint(0, N, k)
+                clf.push(x[i:i+k], i)
+                #clf.push(np.random.randint(0, N, k), i)
+
+            flag = 0
+            for i in range(N-k+1):
                 #clf.push(x[i:i+k], i)
-                clf.push(np.random.randint(0, N, k), i)
+                #clf.push(np.random.randint(0, N, k), i)
+                if not clf.has_key(x[i:i+k]):
+                    flag += 1
+
+            print('x err', flag)
+
+            # check random generated array
+            flag = 0
+            y = np.random.randint(0, N, N)
+            for i in range(N-k+1):
+                if clf.has_key(y[i:i+k]):
+                    flag += 1
+
+            print('y err', flag)
+
+
+
+
+            #for key in clf.iterkeys():
+            #    print('key is', key)
 
         print('numba version')
         oa_test(N, mkey, clf)
