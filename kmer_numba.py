@@ -1568,25 +1568,19 @@ def entry_point(argv):
         spec['values'] = spec['vtype'][:]
         spec['counts'] = nb.uint8[:]
 
-        if platform.python_implementation().lower() == 'pypy':
+        pypy = platform.python_implementation().lower()  
+        if pypy == 'pypy':
             oakht_jit = oakht
-            pypy = True
         else:
             oakht_jit = nb.jitclass(spec)(oakht)
-            pypy=False
 
         clf = oakht_jit(capacity=N, ksize=mkey, ktype=spec['ktype'], vtype=spec['vtype'])
         #clf = oakht_jit(capacity=int(N * 1.75), ksize=mkey, ktype=spec['ktype'], vtype=spec['vtype'])
 
-        print('initial finish')
-        @nb.njit
-        def oa_test(N, k, clf, pypy=pypy):
+        print('initial finish', 'python version', pypy)
+        def oa_test(N, k, clf):
 
-            if pypy:
-                x = [randint(0, N) for elem in range(N)]
-            else:
-                x = np.random.randint(0, N, N)
-
+            x = [randint(0, N) for elem in range(N)]
             for i in range(N-k+1):
                 clf.push(x[i:i+k], i)
                 #clf.push(np.random.randint(0, N, k), i)
@@ -1602,12 +1596,7 @@ def entry_point(argv):
 
             # check random generated array
             flag = 0
-
-            if pypy:
-                y = [randint(0, N) for elem in range(N)]
-            else:
-                y = np.random.randint(0, N, N)
-
+            y = [randint(0, N) for elem in range(N)]
             for i in range(N-k+1):
                 if clf.has_key(y[i:i+k]):
                     flag += 1
@@ -1617,12 +1606,47 @@ def entry_point(argv):
             flag = 0
             for kv in clf.iteritems():
                 print('item is', kv)
-                if flag > 10:
+                if flag > 5:
+                    break
+                flag += 1
+
+        @nb.njit
+        def oa_test_jit(N, k, clf):
+            x = np.random.randint(0, N, N)
+            for i in range(N-k+1):
+                clf.push(x[i:i+k], i)
+                #clf.push(np.random.randint(0, N, k), i)
+
+            flag = 0
+            for i in range(N-k+1):
+                #clf.push(x[i:i+k], i)
+                #clf.push(np.random.randint(0, N, k), i)
+                if not clf.has_key(x[i:i+k]):
+                    flag += 1
+
+            print('x err', flag)
+
+            # check random generated array
+            flag = 0
+            y = np.random.randint(0, N, N)
+            for i in range(N-k+1):
+                if clf.has_key(y[i:i+k]):
+                    flag += 1
+
+            print('y err', flag)
+
+            flag = 0
+            for kv in clf.iteritems():
+                print('item is', kv)
+                if flag > 5:
                     break
                 flag += 1
 
         print('numba version')
-        oa_test(N, mkey, clf)
+        if pypy == 'pypy':
+            oa_test(N, mkey, clf)
+        else:
+            oa_test_jit(N, mkey, clf)
         raise SystemExit()
 
     if dbs:
