@@ -33,7 +33,7 @@ except:
     xrange = range
 
 
-
+# check if a number is prime
 def isprime(n) : 
     if n <= 1 or n % 2 == 0 or n % 3 == 0: 
         return False
@@ -1853,8 +1853,19 @@ class oamkht:
         self.size = (self.counts > 0).sum()
 
 # jit version
-
-
+'''
+spec = {}
+spec['capacity'] = nb.int64
+spec['load'] = nb.float32
+spec['size'] = nb.int64
+spec['ksize'] = nb.int64
+spec['keys'] = nb.uint64[:]
+spec['values'] = nb.int64[:]
+spec['counts'] = nb.uint8[:]
+spec['key'] = nb.uint64
+spec['value'] = nb.int64
+spec['count'] = nb.uint8
+'''
 #@jitclass(spec)
 class oakht:
     #def __init__(self, capacity=1024, load_factor = .75, ksize=1, key_type='uint64', val_type='uint16'):
@@ -1910,8 +1921,18 @@ class oakht:
 
         return True
 
-    def hash_(self, array, start=0, size=1):
-        return hash(array[start])
+
+    def fnv(self, data, start=0, end=0):
+        a, b, c = np.uint64(0xcbf29ce484222325), np.uint64(0x100000001b3), np.uint64(0xffffffffffffffff)
+        for i in xrange(start, end):
+            s = np.uint64(data[i])
+            a ^= s
+            a *= b
+            a &= c
+        return a
+
+    def hash_(self, data, start=0, size=1):
+        return self.fnv(data, start, start + size)
 
     def resize(self):
 
@@ -1979,15 +2000,12 @@ class oakht:
             jk = j * ks
             if self.eq(self.keys, jk, key, start, ks) or self.counts[j] == 0:
                 break
-                #return j
 
             j = (j_init + k * k) % M
 
         return j
-        #return -1
 
-
-    def __setitem__(self, key, value, start=0):
+    def push(self, key, value, start=0):
         j = self.pointer(key, start)
         ks = self.ksize
         jk = j * ks
@@ -2000,9 +2018,13 @@ class oakht:
 
         # if too many elements
         if self.size * 1. / self.capacity > self.load:
+            print('resize', self.size, self.capacity)
             self.resize()
 
-    def __getitem__(self, key, start=0):
+    def __setitem__(self, key, value, start=0):
+        self.push(key, value, start)
+
+    def get(self, key, start=0):
         j = self.pointer(key, start)
         ks = self.ksize
         jk = j * ks
@@ -2010,6 +2032,9 @@ class oakht:
             return self.values[j]
         else:
             raise KeyError
+
+    def __getitem__(self, key, start=0):
+        self.get(key, start)
 
     def get_count(self, key, start=0):
         j = self.pointer(key)
@@ -2037,12 +2062,25 @@ class oakht:
         jk = j * ks
         return self.eq(self.keys, jk, key, start, ks)
    
-    def __iter__(self):
+    def iterkeys(self):
         ks = self.ksize
         for i in xrange(0, self.counts.shape[0]):
             ik = i * ks
             if self.counts[i] > 0:
                 yield self.keys[ik:ik+ks]
+
+    def __iter__(self):
+        self.iterkeys()
+
+    def iteritems(self):
+        ks = self.ksize
+        for i in xrange(0, self.counts.shape[0]):
+            ik = i * ks
+            if self.counts[i] > 0:
+                yield self.values[ik:ik+ks]
+
+    def len(self):
+        return self.size
 
     def __len__(self):
         return self.size
@@ -3292,11 +3330,12 @@ def entry_point(argv):
 
         # test 
         from random import randint
-        N = 10**6
+        N = 10**3
         mkey = 5
         if 0:
             clf = oamkht(mkey=mkey, val_type='uint32')
         else:
+            print('wtf')
             spec = {}
             spec['capacity'] = nb.int64
             spec['load'] = nb.float32
