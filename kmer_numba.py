@@ -13,18 +13,47 @@ import networkx as nx
 import gc
 import itertools
 import os
+import platform
+from random import randint
+
 try:
     from _numpypy import multiarray as np
 except:
     import numpy as np
 
+#try:
+#    from numba import njit, jitclass
+#except:
+#    njit = lambda x: x
+#    jitclass = njit
+
 try:
-    from numba import njit, jitclass
     import numba as nb
 except:
-    njit = lambda x: x
-    jitclass = njit
-    nb = np
+    class NB:
+        def __init__(self):
+            self.uint64 = 'uint64'
+            self.uint32 = 'uint32'
+            self.uint16 = 'uint16'
+            self.uint8 = 'uint8'
+
+            self.int64 = 'int64'
+            self.int32 = 'int32'
+            self.int16 = 'int16'
+            self.int8 = 'int8'
+
+            self.float64 = 'float64'
+            self.float32 = 'int32'
+            self.float16 = 'float16'
+            self.float = 'float32'
+
+            self.longlong = int
+            self.ulonglong = int
+
+            self.njit = lambda x: x
+            self.jitclass = lambda x: x
+
+    nb = NB()
 
 try:
     xrange = xrange
@@ -112,9 +141,10 @@ class oakht:
 
 
     def fnv(self, data, start=0, end=0):
-        a, b, c = np.uint64(0xcbf29ce484222325), np.uint64(0x100000001b3), np.uint64(0xffffffffffffffff)
+        a, b, c = nb.ulonglong(0xcbf29ce484222325), nb.ulonglong(0x100000001b3), nb.ulonglong(0xffffffffffffffff)
+
         for i in xrange(start, end):
-            s = np.uint64(data[i])
+            s = nb.ulonglong(data[i])
             a ^= s
             a *= b
             a &= c
@@ -131,7 +161,7 @@ class oakht:
         keys_old, values_old, counts_old = self.keys, self.values, self.counts
 
         # get new arrays
-        self.capacity = self.find_prime(np.int64(N * 1.62))
+        self.capacity = self.find_prime(nb.longlong(N * 1.62))
         M = self.capacity
 
         keys = np.empty(M * ks, dtype=keys_old.dtype)
@@ -1537,15 +1567,26 @@ def entry_point(argv):
         spec['vtype'] = nb.uint32
         spec['values'] = spec['vtype'][:]
         spec['counts'] = nb.uint8[:]
-   
-        oakht_jit = jitclass(spec)(oakht)
+
+        if platform.python_implementation().lower() == 'pypy':
+            oakht_jit = oakht
+            pypy = True
+        else:
+            oakht_jit = nb.jitclass(spec)(oakht)
+            pypy=False
+
         clf = oakht_jit(capacity=N, ksize=mkey, ktype=spec['ktype'], vtype=spec['vtype'])
         #clf = oakht_jit(capacity=int(N * 1.75), ksize=mkey, ktype=spec['ktype'], vtype=spec['vtype'])
 
         print('initial finish')
-        @njit
-        def oa_test(N, k, clf):
-            x = np.random.randint(0, N, N)
+        @nb.njit
+        def oa_test(N, k, clf, pypy=pypy):
+
+            if pypy:
+                x = [randint(0, N) for elem in range(N)]
+            else:
+                x = np.random.randint(0, N, N)
+
             for i in range(N-k+1):
                 clf.push(x[i:i+k], i)
                 #clf.push(np.random.randint(0, N, k), i)
@@ -1561,7 +1602,12 @@ def entry_point(argv):
 
             # check random generated array
             flag = 0
-            y = np.random.randint(0, N, N)
+
+            if pypy:
+                y = [randint(0, N) for elem in range(N)]
+            else:
+                y = np.random.randint(0, N, N)
+
             for i in range(N-k+1):
                 if clf.has_key(y[i:i+k]):
                     flag += 1

@@ -3330,11 +3330,18 @@ def entry_point(argv):
 
         # test 
         from random import randint
-        N = 10**7
+        from platform import python_implementation
+
+        try:
+            N = int(eval(sys.argv[1]))
+        except:
+            N = 10**7
         mkey = 5
-        if 0:
+        if python_implementation().lower() == 'pypy':
+            pypy = True
             clf = oamkht(mkey=mkey, val_type='uint32')
         else:
+            pyypy = False
             print('wtf')
             spec = {}
             spec['capacity'] = nb.int64
