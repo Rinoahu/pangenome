@@ -1568,11 +1568,12 @@ def entry_point(argv):
 
             print('y err', flag)
 
-
-
-
-            #for key in clf.iterkeys():
-            #    print('key is', key)
+            flag = 0
+            for kv in clf.iteritems():
+                print('item is', kv)
+                if flag > 10:
+                    break
+                flag += 1
 
         print('numba version')
         oa_test(N, mkey, clf)
