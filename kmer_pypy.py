@@ -1942,7 +1942,7 @@ class oakht:
         keys_old, values_old, counts_old = self.keys, self.values, self.counts
 
         # get new arrays
-        self.capacity = self.find_prime(N * 2)
+        self.capacity = self.find_prime(np.int64(N * 1.62))
         M = self.capacity
 
         keys = np.empty(M * ks, dtype=nb.int64)
@@ -3330,7 +3330,7 @@ def entry_point(argv):
 
         # test 
         from random import randint
-        N = 10**3
+        N = 10**7
         mkey = 5
         if 0:
             clf = oamkht(mkey=mkey, val_type='uint32')
@@ -3350,6 +3350,15 @@ def entry_point(argv):
             oakht_jit = jitclass(spec)(oakht)
             clf = oakht_jit(ksize=mkey)
 
+            @njit
+            def oa_test(N, k, clf):
+                x = np.random.randint(0, N, N)
+                for i in range(N-k+1):
+                    clf.push(x[i:i+k], i)
+
+            print('numba version')
+            oa_test(10**8, mkey, clf)
+            raise SystemExit()
 
         if mkey>1:
             x = [tuple([randint(0, N) for tmp in range(mkey)]) for elem in xrange(N)]
