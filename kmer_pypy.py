@@ -18,6 +18,15 @@ try:
 except:
     import numpy as np
 
+
+try:
+    from numba import njit, jitclass
+    import numba as nb
+except:
+    njit = lambda x: x
+    jitclass = njit
+    nb = np
+
 try:
     xrange = xrange
 except:
@@ -1843,6 +1852,244 @@ class oamkht:
         #self.size = sum(self.keys[:: self.mkey] != self.null)
         self.size = (self.counts > 0).sum()
 
+# jit version
+
+
+#@jitclass(spec)
+class oakht:
+    #def __init__(self, capacity=1024, load_factor = .75, ksize=1, key_type='uint64', val_type='uint16'):
+    def __init__(self, capacity=1024, load_factor = .75, ksize=1):
+
+        self.capacity = self.find_prime(capacity)
+        self.load = load_factor
+        self.size = 0
+        #self.ktype = key_type
+        #self.vtype = val_type
+        self.ksize = ksize
+        N = self.capacity
+
+        self.keys = np.empty(ksize * N, dtype=nb.int64)
+        self.values = np.empty(N, dtype=nb.int64)
+        self.counts = np.zeros(N, dtype=nb.uint8)
+
+        #self.keys = np.empty(ksize * N, dtype=np.int64)
+        #self.values = np.empty(N, dtype=np.int64)
+        #self.counts = np.zeros(N, dtype=np.uint8)
+
+
+
+    # check a num is prime
+    def isprime(self, n) : 
+        if n <= 1 or n % 2 == 0 or n % 3 == 0: 
+            return False
+        if n == 2 or n == 3:
+            return True
+        i = 5
+        while(i * i <= n) : 
+            if n % i == 0 or n % (i + 2) == 0: 
+                return False
+            i += 6
+  
+        return True
+
+    # find the minimum prime that >= n
+    def find_prime(self, n):
+        for i in range(n, n+7*10**7):
+            if self.isprime(i):
+                return i
+
+    # clear the dict
+    def clear(self):
+        self.counts[:] = 0
+
+    # whether key0 == key1
+    def eq(self, k0, s0, k1, s1, N):
+        for i in xrange(N):
+            if k0[s0+i] != k1[s1+i]:
+                return False
+
+        return True
+
+    def hash_(self, array, start=0, size=1):
+        return hash(array[start])
+
+    def resize(self):
+
+        # get old arrays
+        N = self.capacity
+        ks = self.ksize
+        keys_old, values_old, counts_old = self.keys, self.values, self.counts
+
+        # get new arrays
+        self.capacity = self.find_prime(N * 2)
+        M = self.capacity
+
+        keys = np.empty(M * ks, dtype=nb.int64)
+        values = np.empty(M, dtype=nb.int64)
+        counts = np.zeros(M, dtype=nb.uint8)
+
+        #keys = np.empty(M * ks, dtype=np.int64)
+        #values = np.empty(M, dtype=np.int64)
+        #counts = np.zeros(M, dtype=np.uint8)
+
+        for i in xrange(N):
+            if counts_old[i] > 0:
+                value = values_old[i]
+                count = counts_old[i]
+                ik = i * ks
+                # new hash
+                #j, k = hash(key) % M, 0
+                j, k = self.hash_(keys_old, ik, ks) % M, 0
+
+                j_init = j
+                for k in xrange(N):
+                    jk = j * ks
+
+                    if counts[j] == 0 or self.eq(keys, jk, keys_old, ik, ks):
+                        break
+
+                    j = (j_init + k * k) % M
+
+                jk = j * ks
+                keys[jk: jk+ks] = keys_old[ik: ik+ks]
+                values[j] = value
+                counts[j] = count
+
+            else:
+                continue
+
+        self.keys = keys
+        self.values = values
+        self.counts = counts
+
+        del keys_old, values_old, counts_old
+
+        #gc.collect()
+
+    def pointer(self, key, start=0):
+        ks = self.ksize
+        M = self.capacity
+
+        #j, k = hash(key) % M, 0
+        j, k = self.hash_(key, start, ks) % M, 0
+
+        k = 0
+        j_init = j
+        for k in xrange(M):
+            jk = j * ks
+            if self.eq(self.keys, jk, key, start, ks) or self.counts[j] == 0:
+                break
+                #return j
+
+            j = (j_init + k * k) % M
+
+        return j
+        #return -1
+
+
+    def __setitem__(self, key, value, start=0):
+        j = self.pointer(key, start)
+        ks = self.ksize
+        jk = j * ks
+        if self.counts[j] == 0:
+            self.size += 1
+            self.keys[jk: jk+ks] = key[start: start+ks]
+
+        self.values[j] = value
+        self.counts[j] = min(self.counts[j] + 1, 255)
+
+        # if too many elements
+        if self.size * 1. / self.capacity > self.load:
+            self.resize()
+
+    def __getitem__(self, key, start=0):
+        j = self.pointer(key, start)
+        ks = self.ksize
+        jk = j * ks
+        if self.eq(self.keys, jk, key, start, ks):
+            return self.values[j]
+        else:
+            raise KeyError
+
+    def get_count(self, key, start=0):
+        j = self.pointer(key)
+        ks = self.ksize
+        jk = j * ks
+        if self.eq(self.keys, jk, key, start, ks):
+            return self.counts[j]
+        else:
+            return 0
+
+
+    def __delitem__(self, key, start=0):
+        j = self.pointer(key)
+        ks = self.ksize
+        jk = j * ks
+        if self.eq(self.keys, jk, key, start, ks):
+            self.counts[j] = 0
+            self.size -= 1
+        else:
+            raise KeyError
+
+    def has_key(self, key, start=0):
+        j = self.pointer(key)
+        ks = self.ksize
+        jk = j * ks
+        return self.eq(self.keys, jk, key, start, ks)
+   
+    def __iter__(self):
+        ks = self.ksize
+        for i in xrange(0, self.counts.shape[0]):
+            ik = i * ks
+            if self.counts[i] > 0:
+                yield self.keys[ik:ik+ks]
+
+    def __len__(self):
+        return self.size
+
+    # save hash table to disk
+    def dump(self, fname):
+        M = self.keys.shape
+        key_type, val_type = self.ktype, self.vtype
+        dump_keys, dump_fk = memmap(fname + '_dump_key.npy', shape=M, dtype=key_type)
+        dump_keys[:] = self.keys
+        dump_fk.close()
+
+        N = self.values.shape
+        dump_values, dump_fv = memmap(fname + '_dump_val.npy', shape=N, dtype=val_type)
+        dump_values[:] = self.values
+        dump_fv.close()
+
+        dump_counts, dump_fc = memmap(fname + '_dump_cnt.npy', shape=N, dtype='uint8')
+        dump_counts[:] = self.counts
+        dump_fc.close()
+
+    # load hash table from disk
+    def loading(self, fname):
+
+        key_type, val_type = self.ktype, self.vtype
+
+        dump_keys, dump_fk = memmap(fname + '_dump_key.npy', 'a+', dtype=key_type)
+        self.keys = np.array(dump_keys)
+        dump_fk.close()
+
+        dump_values, dump_fv = memmap(fname + '_dump_val.npy', 'a+', dtype=val_type)
+        self.values = np.array(dump_values)
+        dump_fv.close()
+
+        dump_counts, dump_fc = memmap(fname + '_dump_cnt.npy', 'a+', dtype='uint8')
+        self.counts = np.array(dump_counts)
+        dump_fc.close()
+
+        self.ksize = len(self.keys) // len(self.values)
+
+        capacity  = len(self.counts)
+        self.primes = [elem for elem in primes if elem >= capacity]
+        self.capacity = self.primes.pop()
+
+        self.size = (self.counts > 0).sum()
+
+
 # combine several dict
 class mdict:
     def __init__(self, capacities=1024, load_factor=.75, key_type='uint64', val_type='uint16', fuc=oaht, bucket=32):
@@ -3045,9 +3292,25 @@ def entry_point(argv):
 
         # test 
         from random import randint
-        N = 10**4
+        N = 10**6
         mkey = 5
-        clf = oamkht(mkey=mkey, val_type='uint32')
+        if 0:
+            clf = oamkht(mkey=mkey, val_type='uint32')
+        else:
+            spec = {}
+            spec['capacity'] = nb.int64
+            spec['load'] = nb.float32
+            spec['size'] = nb.int64
+            spec['ksize'] = nb.int64
+            spec['keys'] = nb.uint64[:]
+            spec['values'] = nb.int64[:]
+            spec['counts'] = nb.uint8[:]
+            spec['key'] = nb.uint64
+            spec['value'] = nb.int64
+            spec['count'] = nb.uint8
+            oakht_jit = jitclass(spec)(oakht)
+            clf = oakht_jit(ksize=mkey)
+
 
         if mkey>1:
             x = [tuple([randint(0, N) for tmp in range(mkey)]) for elem in xrange(N)]
@@ -3057,11 +3320,15 @@ def entry_point(argv):
             y = [randint(0, 2**63) for elem in xrange(N)]
 
         for i in x:
+            #i = np.asarray(i, dtype='uint64')
+            i = np.array(i)
             try:
                 val = min(255, i[0])
             except:
                 val = min(255, i)
             #clf[i] = min(255, val)
+            continue
+
             try:
                 clf[i] += 1
             except:
@@ -3069,10 +3336,14 @@ def entry_point(argv):
 
         flag = 0
         for i in x:
+            #i = np.asarray(i, dtype='uint64')
+            i = np.array(i)
             try:
                 val = min(255, i[0])
             except:
                 val = min(255, i)
+
+            continue
 
             if clf.has_key(i):
                 flag += 1
