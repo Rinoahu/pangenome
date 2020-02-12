@@ -1360,6 +1360,16 @@ def seq2ns_jit_(seq, k=12, bit=5, alpha=alpha):
         output[0], output[1], output[2], output[3] = 0, -1, 35, 36
         yield output
 
+@nb.njit
+def add_node(kmer_dict, key, idx, Nu, hd, nc, lastc=lastc, offbit=offbit):
+    key[0], hd, nt = Nu, hd, nc
+    h = lastc[hd] << offbit
+    d = lastc[nt]
+    if kmer_dict.has_key(key):
+        val = kmer_dict.get(key) 
+        kmer_dict.push(key, val | h | d)
+    else:
+        kmer_dict.push(key, h | d)
 
 @nb.njit
 def kmer2dict(seq, kmer_dict, kmer=12, bit=5, offbit=offbit, lastc=lastc, alpha=alpha):
@@ -1371,21 +1381,16 @@ def kmer2dict(seq, kmer_dict, kmer=12, bit=5, offbit=offbit, lastc=lastc, alpha=
     if n > k:
         Nu = k2n_jit_(seq[:k])
         idx = 0
-        #output[0:4] = idx, Nu, 35, seq[k]
-        #output[0], output[1], output[2], output[3] = idx, Nu, 35, seq[k]
-        #yield output
 
-        idx, key[0], hd, nt = idx, Nu, 35, seq[k]
-        #key = np.asarray([ky], nb.uint64)
-        #hd, nt = output[2], output[3]
-        #key = output[1:2]
-        h = lastc[hd] << offbit
-        d = lastc[nt]
-        if kmer_dict.has_key(key):
-            val = kmer_dict.get(key) 
-            kmer_dict.push(key, val | h | d)
-        else:
-            kmer_dict.push(key, h | d)
+        add_node(kmer_dict, key, idx, Nu, 35, seq[k], lastc=lastc, offbit=offbit)
+        #idx, key[0], hd, nt = idx, Nu, 35, seq[k]
+        #h = lastc[hd] << offbit
+        #d = lastc[nt]
+        #if kmer_dict.has_key(key):
+        #    val = kmer_dict.get(key) 
+        #    kmer_dict.push(key, val | h | d)
+        #else:
+        #    kmer_dict.push(key, h | d)
 
 
         idx += 1
@@ -1396,21 +1401,16 @@ def kmer2dict(seq, kmer_dict, kmer=12, bit=5, offbit=offbit, lastc=lastc, alpha=
             # find head and next char
             hd = int(seq[i-k])
             nc = int(seq[i+1])
-            #yield idx, Nu, hd, nc
-            #output[0], output[1], output[2], output[3] = idx, Nu, hd, nc
-            #yield output
 
-            idx, key[0], hd, nt = idx, Nu, hd, nc
-            #key = np.asarray([ky], nb.uint64)
-            #hd, nt = output[2], output[3]
-            #key = output[1:2]
-            h = lastc[hd] << offbit
-            d = lastc[nt]
-            if kmer_dict.has_key(key):
-                val = kmer_dict.get(key) 
-                kmer_dict.push(key, val | h | d)
-            else:
-                kmer_dict.push(key, h | d)
+            add_node(kmer_dict, key, idx, Nu, hd, nc, lastc=lastc, offbit=offbit)
+            #idx, key[0], hd, nt = idx, Nu, hd, nc
+            #h = lastc[hd] << offbit
+            #d = lastc[nt]
+            #if kmer_dict.has_key(key):
+            #    val = kmer_dict.get(key) 
+            #    kmer_dict.push(key, val | h | d)
+            #else:
+            #    kmer_dict.push(key, h | d)
 
             idx += 1
             if idx % 10**7 == 0:
@@ -1424,34 +1424,36 @@ def kmer2dict(seq, kmer_dict, kmer=12, bit=5, offbit=offbit, lastc=lastc, alpha=
         #output[0], output[1], output[2], output[3] = idx, Nu, hd, 36
         #yield output
 
-        idx, key[0], hd, nt = idx, Nu, hd, 36
-        #key = np.asarray([ky], nb.uint64)
-        #hd, nt = output[2], output[3]
-        #key = output[1:2]
-        h = lastc[hd] << offbit
-        d = lastc[nt]
-        if kmer_dict.has_key(key):
-            val = kmer_dict.get(key) 
-            kmer_dict.push(key, val | h | d)
-        else:
-            kmer_dict.push(key, h | d)
+        add_node(kmer_dict, key, idx, Nu, hd, 36, lastc=lastc, offbit=offbit)
+        #idx, key[0], hd, nt = idx, Nu, hd, 36
+        #h = lastc[hd] << offbit
+        #d = lastc[nt]
+        #if kmer_dict.has_key(key):
+        #    val = kmer_dict.get(key)
+        #    print('yes, wtf before', val,'h', h, 'd', d, val|h|d)
+        #    #kmer_dict.push(key, val|h|d)
+        #    add_node(kmer_dict, key, idx, Nu, hd, 36, lastc=lastc, offbit=offbit)
+        #    print('yes, wtf after', kmer_dict.get(key), val|h|d, kmer_dict.get(key)==val|h|d)
+        #else:
+        #    print('no, wtf before', val, 'h', h, 'd', d, h|d)
+        #    kmer_dict.push(key, h|d)
+        #    add_node(kmer_dict, key, idx, Nu, hd, 36, lastc=lastc, offbit=offbit)
+        #    print('no, wtf after', kmer_dict.get(key), h|d, kmer_dict.get(key)==h|d)
 
     elif n == k:
         #yield 0, k2n_jit_(seq), 35, 36
         #output[0], output[1], output[2], output[3] = 0, k2n_jit_(seq), 35, 36
         #yield output
 
-        idx, key[0], hd, nt = 0, k2n_jit_(seq), 35, 36
-        #key = np.asarray([ky], nb.uint64)
-        #hd, nt = output[2], output[3]
-        #key = output[1:2]
-        h = lastc[hd] << offbit
-        d = lastc[nt]
-        if kmer_dict.has_key(key):
-            val = kmer_dict.get(key) 
-            kmer_dict.push(key, val | h | d)
-        else:
-            kmer_dict.push(key, h | d)
+        add_node(kmer_dict, key, 0, k2n_jit_(seq), 35, 36, lastc=lastc, offbit=offbit)
+        #idx, key[0], hd, nt = 0, k2n_jit_(seq), 35, 36
+        #h = lastc[hd] << offbit
+        #d = lastc[nt]
+        #if kmer_dict.has_key(key):
+        #    val = kmer_dict.get(key) 
+        #    kmer_dict.push(key, val | h | d)
+        #else:
+        #    kmer_dict.push(key, h | d)
 
     else:
         #yield 0, -1, 35, 36
@@ -1459,18 +1461,15 @@ def kmer2dict(seq, kmer_dict, kmer=12, bit=5, offbit=offbit, lastc=lastc, alpha=
         #output[0], output[1], output[2], output[3] = 0, -1, 35, 36
         #yield output
 
-        idx, key[0], hd, nt = 0, -1, 35, 36
-        #key = np.asarray([ky], nb.uint64)
-        #hd, nt = output[2], output[3]
-        #key = output[1:2]
-        h = lastc[hd] << offbit
-        d = lastc[nt]
-        if kmer_dict.has_key(key):
-            val = kmer_dict.get(key) 
-            kmer_dict.push(key, val | h | d)
-        else:
-            kmer_dict.push(key, h | d)
-
+        add_node(kmer_dict, key, 0, -1, 35, 36, lastc=lastc, offbit=offbit)
+        #idx, key[0], hd, nt = 0, -1, 35, 36
+        #h = lastc[hd] << offbit
+        #d = lastc[nt]
+        #if kmer_dict.has_key(key):
+        #    val = kmer_dict.get(key) 
+        #    kmer_dict.push(key, val | h | d)
+        #else:
+        #    kmer_dict.push(key, h | d)
 
 
 def seq2rdbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoint', saved='dBG_disk', hashfunc=oakht, jit=True, spec=None):
