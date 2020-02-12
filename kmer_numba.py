@@ -1471,8 +1471,17 @@ def kmer2dict(seq, kmer_dict, kmer=12, bit=5, offbit=offbit, lastc=lastc, alpha=
         #else:
         #    kmer_dict.push(key, h | d)
 
-
-def seq2rdbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoint', saved='dBG_disk', hashfunc=oakht, jit=True, spec=None):
+spec = {}
+spec['capacity'] = nb.int64
+spec['load'] = nb.float32
+spec['size'] = nb.int64
+spec['ksize'] = nb.int64
+spec['ktype'] = nb.uint64
+spec['keys'] = spec['ktype'][:]
+spec['vtype'] = nb.uint16
+spec['values'] = spec['vtype'][:]
+spec['counts'] = nb.uint8[:]
+def seq2rdbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoint', saved='dBG_disk', hashfunc=oakht, jit=True, spec=spec):
 
     kmer = min(max(1, kmer), 27)
     size = int(pow(bits, kmer)+1)
@@ -1489,13 +1498,15 @@ def seq2rdbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoi
 
     else:
         if jit and spec:
-            hashfunc_jit = jitclass(spec)(hashfunc)
+            hashfunc_jit = nb.jitclass(spec)(hashfunc)
         else:
             hashfunc_jit = hashfunc
-        kmer_dict = hashfunc_jit(2**20, load_factor=.75)
-  
+
+        #kmer_dict = hashfunc_jit(2**20, load_factor=.75)
+        kmer_dict = hashfunc_jit(capacity=2**20, ksize=1, ktype=spec['ktype'], vtype=spec['vtype'])
+ 
     #print('rdbg size', len(kmer_dict))
-    #seq_type = seq_chk(qry)
+    seq_type = seq_chk(qry)
 
     N = 0
     print('breakpoint is', breakpoint)
@@ -1518,8 +1529,9 @@ def seq2rdbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoi
             #    except:
             #        kmer_dict[k] = (h | d)
 
-            seq_array = np.frombuffer(seq, dtype='uint8')
-            kmer2dict(seq_array, kmer, bits, lastc, offbit, kmer_dict)
+            seq_array = np.frombuffer(seq.encode(), dtype='uint8')
+            #kmer2dict(seq_array, kmer, bits, lastc, offbit, kmer_dict)
+            kmer2dict(seq_array, kmer_dict, kmer=kmer, bit=bits, offbit=offbit, lastc=lastc, alpha=alpha)
 
             N += n
             flag += n
@@ -1539,7 +1551,7 @@ def seq2rdbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoi
             break
 
     # save the de bruijn graph to disk
-    kmer_dict.dump(saved)
+    #kmer_dict.dump(saved)
 
     f.close()
     return kmer_dict
@@ -1548,7 +1560,7 @@ def seq2rdbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoi
 
 
 # convert sequences to paths and build the graph
-def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc=oakht):
+def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc=oakht, jit=True, spec=spec):
 
     kmer = min(max(1, kmer), 27)
     if kmer_dict != None:
@@ -1560,7 +1572,7 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
         kmer_dict = hashfunc(2**20, load_factor=.75)
 
     # find the type of sequences
-    #seq_type = seq_chk(qry)
+    seq_type = seq_chk(qry)
 
     # load the graph on disk
     if saved:
@@ -1569,7 +1581,15 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
 
     #print('kmer_dict of size', len(kmer_dict), saved)
     # find weight for rDBG
-    rdbg = oamkht(mkey=4, val_type='uint32')
+    #rdbg = oamkht(mkey=4, val_type='uint32')
+    spec['vtype'] = nb.uint16
+    spec['values'] = spec['vtype'][:]
+    if jit and spec:
+        hashfunc_jit = nb.jitclass(spec)(hashfunc)
+    else:
+        hashfunc_jit = hashfunc
+    rdbg = hashfunc_jit(capacity=2**20, ksize=2, ktype=spec['ktype'], vtype=spec['vtype'])
+
     N = 0
 
     for i in SeqIO.parse(qry, seq_type):

@@ -1,40 +1,150 @@
-('primes', [4611686018427388039, 2305843009213693967, 1152921504606847009, 576460752303423619, 288230376151711813, 144115188075855881, 72057594037928017, 36028797018963971, 18014398509482143, 9007199254740997, 4503599627370517, 2251799813685269, 1125899906842679, 562949953421381, 281474976710677, 140737488355333, 70368744177679, 35184372088891, 17592186044423, 8796093022237, 4398046511119, 2199023255579, 1099511627791, 549755813911, 274877906951, 137438953481, 68719476767, 34359738421, 17179869209, 8589934609, 4294967311, 2147483659, 1073741827, 536870923, 268435459, 134217757, 67108879, 33554467, 16777259, 8388617, 4194319, 2097169, 1048583])
-('offbit', 6, 'low bin', '0b111111')
-('len', 43, 'kmer', 27)
-('len', 43, 'kmer', 27)
-('N is', 86)
-('N is', 134)
-('dct size', 36, 'seq', 134, 'nodes', 34, 'branch', 0, 'rate', 0.0)
-('dbg', 2)
-('dbg', ['TTTTTTTTTTGTTTTTTTTTTATTTTT', 'AAAAAAAAAAGAAAAAAAAAATAAAAA'])
-('len', 43, 'kmer', 27)
->1
-[['p0', 0, 'p1', 0, 'skip', 0, '#', 1430511484375000, 1430511484375000, 'AAAAAAAAAAGAAAAAAAAAATAAAAA']]
-('path', 1, 'seq', 43, 43)
->2
-[]
-('path', 0, 'seq', 24, 24)
-('Graph size', 0, 'edge', 0, 'node', 0)
-	Command being timed: "/home/xiaohu/gnu_tools/pypy/bin/pypy ../kmer_pypy.py -i test.fsa -k 27 -n 5e7"
-	User time (seconds): 0.68
-	System time (seconds): 0.05
-	Percent of CPU this job got: 99%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:00.74
+breakpoint is 0
+Traceback (most recent call last):
+  File "../kmer_numba.py", line 1950, in <module>
+    entry_point(sys.argv)
+  File "../kmer_numba.py", line 1939, in entry_point
+    dct = seq2graph(qry, kmer=kmer, bits=5, Ns=Ns, kmer_dict=kmer_dict, hashfunc=oakht)
+  File "../kmer_numba.py", line 1652, in seq2graph
+    for k12 in rdbg:
+  File "/home/xiaohu/gnu_tools/miniconda3/lib/python3.7/site-packages/numba/jitclass/boxing.py", line 62, in wrapper
+    return method(*args, **kwargs)
+  File "/home/xiaohu/gnu_tools/miniconda3/lib/python3.7/site-packages/numba/dispatcher.py", line 401, in _compile_for_args
+    error_rewrite(e, 'typing')
+  File "/home/xiaohu/gnu_tools/miniconda3/lib/python3.7/site-packages/numba/dispatcher.py", line 344, in error_rewrite
+    reraise(type(e), e, None)
+  File "/home/xiaohu/gnu_tools/miniconda3/lib/python3.7/site-packages/numba/six.py", line 668, in reraise
+    raise value.with_traceback(tb)
+numba.errors.TypingError: Failed in nopython mode pipeline (step: nopython frontend)
+[1m[1m[1m[1mFailed in nopython mode pipeline (step: nopython frontend)
+[1m[1m[1m[1mFailed in nopython mode pipeline (step: nopython frontend)
+[1m[1m[1m[1mFailed in nopython mode pipeline (step: nopython frontend)
+[1m[1m[1m[1mFailed in nopython mode pipeline (step: nopython frontend)
+[1m[1m[1m[1mFailed in nopython mode pipeline (step: nopython frontend)
+[1m[1mInvalid use of Function(<built-in function getitem>) with argument(s) of type(s): (int64, int64)
+ * parameterized
+[1mIn definition 0:[0m
+[1m    All templates rejected with literals.[0m
+[1mIn definition 1:[0m
+[1m    All templates rejected without literals.[0m
+[1mIn definition 2:[0m
+[1m    All templates rejected with literals.[0m
+[1mIn definition 3:[0m
+[1m    All templates rejected without literals.[0m
+[1mIn definition 4:[0m
+[1m    All templates rejected with literals.[0m
+[1mIn definition 5:[0m
+[1m    All templates rejected without literals.[0m
+[1mIn definition 6:[0m
+[1m    All templates rejected with literals.[0m
+[1mIn definition 7:[0m
+[1m    All templates rejected without literals.[0m
+[1mIn definition 8:[0m
+[1m    All templates rejected with literals.[0m
+[1mIn definition 9:[0m
+[1m    All templates rejected without literals.[0m
+[1mIn definition 10:[0m
+[1m    All templates rejected with literals.[0m
+[1mIn definition 11:[0m
+[1m    All templates rejected without literals.[0m
+[1mIn definition 12:[0m
+[1m    All templates rejected with literals.[0m
+[1mIn definition 13:[0m
+[1m    All templates rejected without literals.[0m
+[1mIn definition 14:[0m
+[1m    All templates rejected with literals.[0m
+[1mIn definition 15:[0m
+[1m    All templates rejected without literals.[0m
+[1mThis error is usually caused by passing an argument of a type that is unsupported by the named function.[0m[0m
+[0m[1m[1] During: typing of intrinsic-call at ../kmer_numba.py (147)[0m
+[1m
+File "../kmer_numba.py", line 147:[0m
+[1m    def fnv(self, data, start=0, end=0):
+        <source elided>
+        for i in xrange(start, end):
+[1m            s = nb.ulonglong(data[i])
+[0m            [1m^[0m[0m
+
+[0m[1m[1] During: resolving callee type: BoundFunction((<class 'numba.types.misc.ClassInstanceType'>, 'fnv') for instance.jitclass.oakht#7fb242b15490<capacity:int64,load:float32,size:int64,ksize:int64,ktype:uint64,keys:array(uint64, 1d, A),vtype:uint16,values:array(uint16, 1d, A),counts:array(uint8, 1d, A)>)[0m
+[0m[1m[2] During: typing of call at ../kmer_numba.py (154)
+[0m
+[0m[1m[3] During: resolving callee type: BoundFunction((<class 'numba.types.misc.ClassInstanceType'>, 'fnv') for instance.jitclass.oakht#7fb242b15490<capacity:int64,load:float32,size:int64,ksize:int64,ktype:uint64,keys:array(uint64, 1d, A),vtype:uint16,values:array(uint16, 1d, A),counts:array(uint8, 1d, A)>)[0m
+[0m[1m[4] During: typing of call at ../kmer_numba.py (154)
+[0m
+[1m
+File "../kmer_numba.py", line 154:[0m
+[1m    def hash_(self, data, start=0, size=1):
+[1m        return self.fnv(data, start, start + size)
+[0m        [1m^[0m[0m
+
+[0m[1m[1] During: resolving callee type: BoundFunction((<class 'numba.types.misc.ClassInstanceType'>, 'hash_') for instance.jitclass.oakht#7fb242b15490<capacity:int64,load:float32,size:int64,ksize:int64,ktype:uint64,keys:array(uint64, 1d, A),vtype:uint16,values:array(uint16, 1d, A),counts:array(uint8, 1d, A)>)[0m
+[0m[1m[2] During: typing of call at ../kmer_numba.py (208)
+[0m
+[0m[1m[3] During: resolving callee type: BoundFunction((<class 'numba.types.misc.ClassInstanceType'>, 'hash_') for instance.jitclass.oakht#7fb242b15490<capacity:int64,load:float32,size:int64,ksize:int64,ktype:uint64,keys:array(uint64, 1d, A),vtype:uint16,values:array(uint16, 1d, A),counts:array(uint8, 1d, A)>)[0m
+[0m[1m[4] During: typing of call at ../kmer_numba.py (208)
+[0m
+[1m
+File "../kmer_numba.py", line 208:[0m
+[1m    def pointer(self, key, start=0):
+        <source elided>
+        #j, k = hash(key) % M, 0
+[1m        j, k = self.hash_(key, start, ks) % M, 0
+[0m        [1m^[0m[0m
+
+[0m[1m[1] During: resolving callee type: BoundFunction((<class 'numba.types.misc.ClassInstanceType'>, 'pointer') for instance.jitclass.oakht#7fb242b15490<capacity:int64,load:float32,size:int64,ksize:int64,ktype:uint64,keys:array(uint64, 1d, A),vtype:uint16,values:array(uint16, 1d, A),counts:array(uint8, 1d, A)>)[0m
+[0m[1m[2] During: typing of call at ../kmer_numba.py (242)
+[0m
+[0m[1m[3] During: resolving callee type: BoundFunction((<class 'numba.types.misc.ClassInstanceType'>, 'pointer') for instance.jitclass.oakht#7fb242b15490<capacity:int64,load:float32,size:int64,ksize:int64,ktype:uint64,keys:array(uint64, 1d, A),vtype:uint16,values:array(uint16, 1d, A),counts:array(uint8, 1d, A)>)[0m
+[0m[1m[4] During: typing of call at ../kmer_numba.py (242)
+[0m
+[1m
+File "../kmer_numba.py", line 242:[0m
+[1m    def get(self, key, start=0):
+[1m        j = self.pointer(key, start)
+[0m        [1m^[0m[0m
+
+[0m[1m[1] During: resolving callee type: BoundFunction((<class 'numba.types.misc.ClassInstanceType'>, 'get') for instance.jitclass.oakht#7fb242b15490<capacity:int64,load:float32,size:int64,ksize:int64,ktype:uint64,keys:array(uint64, 1d, A),vtype:uint16,values:array(uint16, 1d, A),counts:array(uint8, 1d, A)>)[0m
+[0m[1m[2] During: typing of call at ../kmer_numba.py (251)
+[0m
+[0m[1m[3] During: resolving callee type: BoundFunction((<class 'numba.types.misc.ClassInstanceType'>, 'get') for instance.jitclass.oakht#7fb242b15490<capacity:int64,load:float32,size:int64,ksize:int64,ktype:uint64,keys:array(uint64, 1d, A),vtype:uint16,values:array(uint16, 1d, A),counts:array(uint8, 1d, A)>)[0m
+[0m[1m[4] During: typing of call at ../kmer_numba.py (251)
+[0m
+[1m
+File "../kmer_numba.py", line 251:[0m
+[1m    def __getitem__(self, key, start=0):
+[1m        self.get(key, start)
+[0m        [1m^[0m[0m
+
+[0m[1m[1] During: resolving callee type: BoundFunction((<class 'numba.types.misc.ClassInstanceType'>, '__getitem__') for instance.jitclass.oakht#7fb242b15490<capacity:int64,load:float32,size:int64,ksize:int64,ktype:uint64,keys:array(uint64, 1d, A),vtype:uint16,values:array(uint16, 1d, A),counts:array(uint8, 1d, A)>)[0m
+[0m[1m[2] During: typing of call at <string> (3)
+[0m
+[0m[1m[3] During: resolving callee type: BoundFunction((<class 'numba.types.misc.ClassInstanceType'>, '__getitem__') for instance.jitclass.oakht#7fb242b15490<capacity:int64,load:float32,size:int64,ksize:int64,ktype:uint64,keys:array(uint64, 1d, A),vtype:uint16,values:array(uint16, 1d, A),counts:array(uint8, 1d, A)>)[0m
+[0m[1m[4] During: typing of call at <string> (3)
+[0m
+[1m
+File "<string>", line 3:[0m
+[1m<source missing, REPL/exec in use?>[0m
+
+Command exited with non-zero status 1
+	Command being timed: "python ../kmer_numba.py -i test.fsa -k 27 -n 5e7"
+	User time (seconds): 4.65
+	System time (seconds): 0.50
+	Percent of CPU this job got: 111%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:04.62
 	Average shared text size (kbytes): 0
 	Average unshared data size (kbytes): 0
 	Average stack size (kbytes): 0
 	Average total size (kbytes): 0
-	Maximum resident set size (kbytes): 120112
+	Maximum resident set size (kbytes): 170312
 	Average resident set size (kbytes): 0
 	Major (requiring I/O) page faults: 0
-	Minor (reclaiming a frame) page faults: 22504
-	Voluntary context switches: 13
-	Involuntary context switches: 723
+	Minor (reclaiming a frame) page faults: 39303
+	Voluntary context switches: 23
+	Involuntary context switches: 5173
 	Swaps: 0
 	File system inputs: 0
-	File system outputs: 8
+	File system outputs: 16
 	Socket messages sent: 0
 	Socket messages received: 0
 	Signals delivered: 0
 	Page size (bytes): 4096
-	Exit status: 0
+	Exit status: 1

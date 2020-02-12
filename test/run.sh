@@ -1,12 +1,13 @@
 #!/bin/bash
 
 tstime='/usr/bin/time -v'
-pypy=/home/xiaohu/gnu_tools/pypy/bin/pypy
+#pypy=/home/xiaohu/gnu_tools/pypy/bin/pypy
+pypy=python
 
 #seq=pan_genome.fsa
 seq=test.fsa
 
-$tstime $pypy ../kmer_pypy.py -i $seq -k 27 -n 5e7 &> log.txt
+$tstime $pypy ../kmer_numba.py -i $seq -k 27 -n 5e7 &> log.txt
 
 exit 0
 
