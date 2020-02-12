@@ -1364,6 +1364,7 @@ def seq2ns_jit_(seq, k=12, bit=5, alpha=alpha):
 @nb.njit
 def kmer2dict(seq, kmer_dict, kmer=12, bit=5, offbit=offbit, lastc=lastc, alpha=alpha):
     k = kmer
+    key = np.empty(1, dtype=np.uint64)
     # '#' is 35, '$' is 36
     #output = np.empty(4, dtype=np.uint64)
     n = len(seq)
@@ -1374,8 +1375,8 @@ def kmer2dict(seq, kmer_dict, kmer=12, bit=5, offbit=offbit, lastc=lastc, alpha=
         #output[0], output[1], output[2], output[3] = idx, Nu, 35, seq[k]
         #yield output
 
-        idx, ky, hd, nt = idx, Nu, 35, seq[k]
-        key = np.asarray([ky], nb.uint64)
+        idx, key[0], hd, nt = idx, Nu, 35, seq[k]
+        #key = np.asarray([ky], nb.uint64)
         #hd, nt = output[2], output[3]
         #key = output[1:2]
         h = lastc[hd] << offbit
@@ -1399,8 +1400,8 @@ def kmer2dict(seq, kmer_dict, kmer=12, bit=5, offbit=offbit, lastc=lastc, alpha=
             #output[0], output[1], output[2], output[3] = idx, Nu, hd, nc
             #yield output
 
-            idx, ky, hd, nt = idx, Nu, hd, nc
-            key = np.asarray([ky], nb.uint64)
+            idx, key[0], hd, nt = idx, Nu, hd, nc
+            #key = np.asarray([ky], nb.uint64)
             #hd, nt = output[2], output[3]
             #key = output[1:2]
             h = lastc[hd] << offbit
@@ -1423,8 +1424,8 @@ def kmer2dict(seq, kmer_dict, kmer=12, bit=5, offbit=offbit, lastc=lastc, alpha=
         #output[0], output[1], output[2], output[3] = idx, Nu, hd, 36
         #yield output
 
-        idx, ky, hd, nt = idx, Nu, hd, 36
-        key = np.asarray([ky], nb.uint64)
+        idx, key[0], hd, nt = idx, Nu, hd, 36
+        #key = np.asarray([ky], nb.uint64)
         #hd, nt = output[2], output[3]
         #key = output[1:2]
         h = lastc[hd] << offbit
@@ -1440,8 +1441,8 @@ def kmer2dict(seq, kmer_dict, kmer=12, bit=5, offbit=offbit, lastc=lastc, alpha=
         #output[0], output[1], output[2], output[3] = 0, k2n_jit_(seq), 35, 36
         #yield output
 
-        idx, ky, hd, nt = 0, k2n_jit_(seq), 35, 36
-        key = np.asarray([ky], nb.uint64)
+        idx, key[0], hd, nt = 0, k2n_jit_(seq), 35, 36
+        #key = np.asarray([ky], nb.uint64)
         #hd, nt = output[2], output[3]
         #key = output[1:2]
         h = lastc[hd] << offbit
@@ -1458,8 +1459,8 @@ def kmer2dict(seq, kmer_dict, kmer=12, bit=5, offbit=offbit, lastc=lastc, alpha=
         #output[0], output[1], output[2], output[3] = 0, -1, 35, 36
         #yield output
 
-        idx, ky, hd, nt = 0, -1, 35, 36
-        key = np.asarray([ky], nb.uint64)
+        idx, key[0], hd, nt = 0, -1, 35, 36
+        #key = np.asarray([ky], nb.uint64)
         #hd, nt = output[2], output[3]
         #key = output[1:2]
         h = lastc[hd] << offbit
@@ -1825,7 +1826,7 @@ def entry_point(argv):
         np.random.shuffle(seq)
 
         kmer2dict(seq, clf, 27)
-        print('finish')
+        print('finish', clf.size, (clf.counts>0).sum())
         raise SystemExit()
 
 
