@@ -1303,7 +1303,7 @@ def seq2rdbg0(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpo
     return kmer_dict
 
 
-@nb.njit
+@nb.njit(inline='always')
 def k2n_jit_(kmer, bit=5, alpha=alpha):
     #N = nb.ulonglong(0)
     N = idx = 0
@@ -1360,7 +1360,7 @@ def seq2ns_jit_(seq, k=12, bit=5, alpha=alpha):
         output[0], output[1], output[2], output[3] = 0, -1, 35, 36
         yield output
 
-@nb.njit
+@nb.njit(inline='always')
 def add_node(kmer_dict, key, idx, Nu, hd, nc, lastc=lastc, offbit=offbit):
     key[0], hd, nt = Nu, hd, nc
     h = lastc[hd] << offbit
