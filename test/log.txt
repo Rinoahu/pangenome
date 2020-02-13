@@ -1,10 +1,15 @@
+using jit
 breakpoint is 0
+before adding node 1 43 clf size 0 seq len 0
+after adding nodes 1 clf size 34 seq len 86
+before adding node 2 24 clf size 34 seq len 86
+after adding nodes 2 clf size 35 seq len 134
 Traceback (most recent call last):
-  File "../kmer_numba.py", line 1950, in <module>
+  File "../kmer_numba.py", line 1966, in <module>
     entry_point(sys.argv)
-  File "../kmer_numba.py", line 1939, in entry_point
+  File "../kmer_numba.py", line 1955, in entry_point
     dct = seq2graph(qry, kmer=kmer, bits=5, Ns=Ns, kmer_dict=kmer_dict, hashfunc=oakht)
-  File "../kmer_numba.py", line 1652, in seq2graph
+  File "../kmer_numba.py", line 1668, in seq2graph
     for k12 in rdbg:
   File "/home/xiaohu/gnu_tools/miniconda3/lib/python3.7/site-packages/numba/jitclass/boxing.py", line 62, in wrapper
     return method(*args, **kwargs)
@@ -55,69 +60,69 @@ numba.errors.TypingError: Failed in nopython mode pipeline (step: nopython front
 [1mIn definition 15:[0m
 [1m    All templates rejected without literals.[0m
 [1mThis error is usually caused by passing an argument of a type that is unsupported by the named function.[0m[0m
-[0m[1m[1] During: typing of intrinsic-call at ../kmer_numba.py (147)[0m
+[0m[1m[1] During: typing of intrinsic-call at ../kmer_numba.py (146)[0m
 [1m
-File "../kmer_numba.py", line 147:[0m
+File "../kmer_numba.py", line 146:[0m
 [1m    def fnv(self, data, start=0, end=0):
         <source elided>
-        for i in xrange(start, end):
-[1m            s = nb.ulonglong(data[i])
+            #val = nb.ulonglong(data[start])
+[1m            val = data[start]
 [0m            [1m^[0m[0m
 
-[0m[1m[1] During: resolving callee type: BoundFunction((<class 'numba.types.misc.ClassInstanceType'>, 'fnv') for instance.jitclass.oakht#7fb242b15490<capacity:int64,load:float32,size:int64,ksize:int64,ktype:uint64,keys:array(uint64, 1d, A),vtype:uint16,values:array(uint16, 1d, A),counts:array(uint8, 1d, A)>)[0m
-[0m[1m[2] During: typing of call at ../kmer_numba.py (154)
+[0m[1m[1] During: resolving callee type: BoundFunction((<class 'numba.types.misc.ClassInstanceType'>, 'fnv') for instance.jitclass.oakht#7f2790922590<capacity:int64,load:float32,size:int64,ksize:int64,ktype:uint64,keys:array(uint64, 1d, A),vtype:uint16,values:array(uint16, 1d, A),counts:array(uint8, 1d, A)>)[0m
+[0m[1m[2] During: typing of call at ../kmer_numba.py (163)
 [0m
-[0m[1m[3] During: resolving callee type: BoundFunction((<class 'numba.types.misc.ClassInstanceType'>, 'fnv') for instance.jitclass.oakht#7fb242b15490<capacity:int64,load:float32,size:int64,ksize:int64,ktype:uint64,keys:array(uint64, 1d, A),vtype:uint16,values:array(uint16, 1d, A),counts:array(uint8, 1d, A)>)[0m
-[0m[1m[4] During: typing of call at ../kmer_numba.py (154)
+[0m[1m[3] During: resolving callee type: BoundFunction((<class 'numba.types.misc.ClassInstanceType'>, 'fnv') for instance.jitclass.oakht#7f2790922590<capacity:int64,load:float32,size:int64,ksize:int64,ktype:uint64,keys:array(uint64, 1d, A),vtype:uint16,values:array(uint16, 1d, A),counts:array(uint8, 1d, A)>)[0m
+[0m[1m[4] During: typing of call at ../kmer_numba.py (163)
 [0m
 [1m
-File "../kmer_numba.py", line 154:[0m
+File "../kmer_numba.py", line 163:[0m
 [1m    def hash_(self, data, start=0, size=1):
 [1m        return self.fnv(data, start, start + size)
 [0m        [1m^[0m[0m
 
-[0m[1m[1] During: resolving callee type: BoundFunction((<class 'numba.types.misc.ClassInstanceType'>, 'hash_') for instance.jitclass.oakht#7fb242b15490<capacity:int64,load:float32,size:int64,ksize:int64,ktype:uint64,keys:array(uint64, 1d, A),vtype:uint16,values:array(uint16, 1d, A),counts:array(uint8, 1d, A)>)[0m
-[0m[1m[2] During: typing of call at ../kmer_numba.py (208)
+[0m[1m[1] During: resolving callee type: BoundFunction((<class 'numba.types.misc.ClassInstanceType'>, 'hash_') for instance.jitclass.oakht#7f2790922590<capacity:int64,load:float32,size:int64,ksize:int64,ktype:uint64,keys:array(uint64, 1d, A),vtype:uint16,values:array(uint16, 1d, A),counts:array(uint8, 1d, A)>)[0m
+[0m[1m[2] During: typing of call at ../kmer_numba.py (217)
 [0m
-[0m[1m[3] During: resolving callee type: BoundFunction((<class 'numba.types.misc.ClassInstanceType'>, 'hash_') for instance.jitclass.oakht#7fb242b15490<capacity:int64,load:float32,size:int64,ksize:int64,ktype:uint64,keys:array(uint64, 1d, A),vtype:uint16,values:array(uint16, 1d, A),counts:array(uint8, 1d, A)>)[0m
-[0m[1m[4] During: typing of call at ../kmer_numba.py (208)
+[0m[1m[3] During: resolving callee type: BoundFunction((<class 'numba.types.misc.ClassInstanceType'>, 'hash_') for instance.jitclass.oakht#7f2790922590<capacity:int64,load:float32,size:int64,ksize:int64,ktype:uint64,keys:array(uint64, 1d, A),vtype:uint16,values:array(uint16, 1d, A),counts:array(uint8, 1d, A)>)[0m
+[0m[1m[4] During: typing of call at ../kmer_numba.py (217)
 [0m
 [1m
-File "../kmer_numba.py", line 208:[0m
+File "../kmer_numba.py", line 217:[0m
 [1m    def pointer(self, key, start=0):
         <source elided>
         #j, k = hash(key) % M, 0
 [1m        j, k = self.hash_(key, start, ks) % M, 0
 [0m        [1m^[0m[0m
 
-[0m[1m[1] During: resolving callee type: BoundFunction((<class 'numba.types.misc.ClassInstanceType'>, 'pointer') for instance.jitclass.oakht#7fb242b15490<capacity:int64,load:float32,size:int64,ksize:int64,ktype:uint64,keys:array(uint64, 1d, A),vtype:uint16,values:array(uint16, 1d, A),counts:array(uint8, 1d, A)>)[0m
-[0m[1m[2] During: typing of call at ../kmer_numba.py (242)
+[0m[1m[1] During: resolving callee type: BoundFunction((<class 'numba.types.misc.ClassInstanceType'>, 'pointer') for instance.jitclass.oakht#7f2790922590<capacity:int64,load:float32,size:int64,ksize:int64,ktype:uint64,keys:array(uint64, 1d, A),vtype:uint16,values:array(uint16, 1d, A),counts:array(uint8, 1d, A)>)[0m
+[0m[1m[2] During: typing of call at ../kmer_numba.py (252)
 [0m
-[0m[1m[3] During: resolving callee type: BoundFunction((<class 'numba.types.misc.ClassInstanceType'>, 'pointer') for instance.jitclass.oakht#7fb242b15490<capacity:int64,load:float32,size:int64,ksize:int64,ktype:uint64,keys:array(uint64, 1d, A),vtype:uint16,values:array(uint16, 1d, A),counts:array(uint8, 1d, A)>)[0m
-[0m[1m[4] During: typing of call at ../kmer_numba.py (242)
+[0m[1m[3] During: resolving callee type: BoundFunction((<class 'numba.types.misc.ClassInstanceType'>, 'pointer') for instance.jitclass.oakht#7f2790922590<capacity:int64,load:float32,size:int64,ksize:int64,ktype:uint64,keys:array(uint64, 1d, A),vtype:uint16,values:array(uint16, 1d, A),counts:array(uint8, 1d, A)>)[0m
+[0m[1m[4] During: typing of call at ../kmer_numba.py (252)
 [0m
 [1m
-File "../kmer_numba.py", line 242:[0m
+File "../kmer_numba.py", line 252:[0m
 [1m    def get(self, key, start=0):
 [1m        j = self.pointer(key, start)
 [0m        [1m^[0m[0m
 
-[0m[1m[1] During: resolving callee type: BoundFunction((<class 'numba.types.misc.ClassInstanceType'>, 'get') for instance.jitclass.oakht#7fb242b15490<capacity:int64,load:float32,size:int64,ksize:int64,ktype:uint64,keys:array(uint64, 1d, A),vtype:uint16,values:array(uint16, 1d, A),counts:array(uint8, 1d, A)>)[0m
-[0m[1m[2] During: typing of call at ../kmer_numba.py (251)
+[0m[1m[1] During: resolving callee type: BoundFunction((<class 'numba.types.misc.ClassInstanceType'>, 'get') for instance.jitclass.oakht#7f2790922590<capacity:int64,load:float32,size:int64,ksize:int64,ktype:uint64,keys:array(uint64, 1d, A),vtype:uint16,values:array(uint16, 1d, A),counts:array(uint8, 1d, A)>)[0m
+[0m[1m[2] During: typing of call at ../kmer_numba.py (261)
 [0m
-[0m[1m[3] During: resolving callee type: BoundFunction((<class 'numba.types.misc.ClassInstanceType'>, 'get') for instance.jitclass.oakht#7fb242b15490<capacity:int64,load:float32,size:int64,ksize:int64,ktype:uint64,keys:array(uint64, 1d, A),vtype:uint16,values:array(uint16, 1d, A),counts:array(uint8, 1d, A)>)[0m
-[0m[1m[4] During: typing of call at ../kmer_numba.py (251)
+[0m[1m[3] During: resolving callee type: BoundFunction((<class 'numba.types.misc.ClassInstanceType'>, 'get') for instance.jitclass.oakht#7f2790922590<capacity:int64,load:float32,size:int64,ksize:int64,ktype:uint64,keys:array(uint64, 1d, A),vtype:uint16,values:array(uint16, 1d, A),counts:array(uint8, 1d, A)>)[0m
+[0m[1m[4] During: typing of call at ../kmer_numba.py (261)
 [0m
 [1m
-File "../kmer_numba.py", line 251:[0m
+File "../kmer_numba.py", line 261:[0m
 [1m    def __getitem__(self, key, start=0):
 [1m        self.get(key, start)
 [0m        [1m^[0m[0m
 
-[0m[1m[1] During: resolving callee type: BoundFunction((<class 'numba.types.misc.ClassInstanceType'>, '__getitem__') for instance.jitclass.oakht#7fb242b15490<capacity:int64,load:float32,size:int64,ksize:int64,ktype:uint64,keys:array(uint64, 1d, A),vtype:uint16,values:array(uint16, 1d, A),counts:array(uint8, 1d, A)>)[0m
+[0m[1m[1] During: resolving callee type: BoundFunction((<class 'numba.types.misc.ClassInstanceType'>, '__getitem__') for instance.jitclass.oakht#7f2790922590<capacity:int64,load:float32,size:int64,ksize:int64,ktype:uint64,keys:array(uint64, 1d, A),vtype:uint16,values:array(uint16, 1d, A),counts:array(uint8, 1d, A)>)[0m
 [0m[1m[2] During: typing of call at <string> (3)
 [0m
-[0m[1m[3] During: resolving callee type: BoundFunction((<class 'numba.types.misc.ClassInstanceType'>, '__getitem__') for instance.jitclass.oakht#7fb242b15490<capacity:int64,load:float32,size:int64,ksize:int64,ktype:uint64,keys:array(uint64, 1d, A),vtype:uint16,values:array(uint16, 1d, A),counts:array(uint8, 1d, A)>)[0m
+[0m[1m[3] During: resolving callee type: BoundFunction((<class 'numba.types.misc.ClassInstanceType'>, '__getitem__') for instance.jitclass.oakht#7f2790922590<capacity:int64,load:float32,size:int64,ksize:int64,ktype:uint64,keys:array(uint64, 1d, A),vtype:uint16,values:array(uint16, 1d, A),counts:array(uint8, 1d, A)>)[0m
 [0m[1m[4] During: typing of call at <string> (3)
 [0m
 [1m
@@ -126,20 +131,20 @@ File "<string>", line 3:[0m
 
 Command exited with non-zero status 1
 	Command being timed: "python ../kmer_numba.py -i test.fsa -k 27 -n 5e7"
-	User time (seconds): 4.65
-	System time (seconds): 0.50
+	User time (seconds): 4.59
+	System time (seconds): 0.47
 	Percent of CPU this job got: 111%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:04.62
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:04.54
 	Average shared text size (kbytes): 0
 	Average unshared data size (kbytes): 0
 	Average stack size (kbytes): 0
 	Average total size (kbytes): 0
-	Maximum resident set size (kbytes): 170312
+	Maximum resident set size (kbytes): 170296
 	Average resident set size (kbytes): 0
 	Major (requiring I/O) page faults: 0
-	Minor (reclaiming a frame) page faults: 39303
-	Voluntary context switches: 23
-	Involuntary context switches: 5173
+	Minor (reclaiming a frame) page faults: 39186
+	Voluntary context switches: 29
+	Involuntary context switches: 5150
 	Swaps: 0
 	File system inputs: 0
 	File system outputs: 16

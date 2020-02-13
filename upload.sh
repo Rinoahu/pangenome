@@ -1,5 +1,7 @@
 #!/bin/bash
 
+rm -f ./test/pan_genome.fsa
+
 git config --global user.email xiao.hu1@montana.edu
 git config --global user.name Rinoahu
 

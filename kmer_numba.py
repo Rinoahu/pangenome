@@ -28,6 +28,11 @@ except:
 #    jitclass = njit
 
 try:
+    from numba.typed import Dict, List
+except:
+    Dict, List = dict, list
+
+try:
     import numba as nb
 except:
     class NB:
@@ -139,15 +144,24 @@ class oakht:
 
         return True
 
-
     def fnv(self, data, start=0, end=0):
         a, b, c = nb.ulonglong(0xcbf29ce484222325), nb.ulonglong(0x100000001b3), nb.ulonglong(0xffffffffffffffff)
-
-        for i in xrange(start, end):
-            s = nb.ulonglong(data[i])
-            a ^= s
-            a *= b
-            a &= c
+        if end - start == 1:
+            #val = nb.ulonglong(data[start])
+            val = data[start]
+            for i in xrange(4):
+                s = nb.ulonglong(val & 0b11111111)
+                a ^= s
+                a *= b
+                a &= c
+                #val = nb.ulonglong(val >> 2)
+                val = (val >> 8)
+        else:
+            for i in xrange(start, end):
+                s = nb.ulonglong(data[i])
+                a ^= s
+                a *= b
+                a &= c
         return a
 
     def hash_(self, data, start=0, size=1):
@@ -212,6 +226,7 @@ class oakht:
         for k in xrange(M):
             jk = j * ks
             if self.eq(self.keys, jk, key, start, ks) or self.counts[j] == 0:
+                #print('depth', k)
                 break
 
             j = (j_init + k * k) % M
@@ -233,7 +248,7 @@ class oakht:
         if self.size * 1. / self.capacity > self.load:
             a, b =  self.size, self.capacity
             self.resize()
-            print('before resize', a, b, 'after resize', self.size, self.capacity)
+            #print('before resize', a, b, 'after resize', self.size, self.capacity)
 
     def __setitem__(self, key, value, start=0):
         self.push(key, value, start)
@@ -392,6 +407,8 @@ def nbit(n):
     x = n - ((n >> 1) & 3681400539) - ((n >> 2) & 1227133513)
     return ((x + (x >> 3)) & 3340530119) % 63
 
+nbit_jit_ = nb.njit(nbit)
+
 # the last char of the kmer
 # A: 1
 # T: 10
@@ -457,7 +474,20 @@ def n2k_(N, K=12, bit=5):
         s.append(c)
     return ''.join(s)
 
-    
+beta_ = np.frombuffer(beta.encode(), dtype='uint8')
+@nb.njit
+def n2k_jit_(N, K=12, bit=5, beta_=beta_):
+    n, s = N, np.empty(K, dtype=nb.uint8)
+    for i in xrange(K):
+        #c = beta[n % bit]
+        j = nb.uint64(n) % bit
+        s[i] = beta_[j]
+        n //= bit
+    #return ''.join(s)
+    return s
+
+
+
 def seq2ns(seq, k=12):
     n = len(seq)
     if n < k:
@@ -569,8 +599,9 @@ def query0(xs, x):
 
 # check how many indegree and outdegree a node has
 def query(ht, i):
+    #print('breakpoint 582', ht.get([i]), i)
     try:
-        hn = ht[i]
+        hn = ht.get([i])
     except:
         return False
 
@@ -1325,7 +1356,7 @@ def seq2ns_jit_(seq, k=12, bit=5, alpha=alpha):
         Nu = k2n_jit_(seq[:k])
         idx = 0
         #output[0:4] = idx, Nu, 35, seq[k]
-        #output[0], output[1], output[2], output[3] = idx, Nu, 35, seq[k]
+        output[0], output[1], output[2], output[3] = idx, Nu, 35, seq[k]
         yield output
         idx += 1
 
@@ -1361,7 +1392,7 @@ def seq2ns_jit_(seq, k=12, bit=5, alpha=alpha):
         yield output
 
 @nb.njit(inline='always')
-def add_node(kmer_dict, key, idx, Nu, hd, nc, lastc=lastc, offbit=offbit):
+def add_kmer(kmer_dict, key, idx, Nu, hd, nc, lastc=lastc, offbit=offbit):
     key[0], hd, nt = Nu, hd, nc
     h = lastc[hd] << offbit
     d = lastc[nt]
@@ -1382,7 +1413,7 @@ def kmer2dict(seq, kmer_dict, kmer=12, bit=5, offbit=offbit, lastc=lastc, alpha=
         Nu = k2n_jit_(seq[:k])
         idx = 0
 
-        add_node(kmer_dict, key, idx, Nu, 35, seq[k], lastc=lastc, offbit=offbit)
+        add_kmer(kmer_dict, key, idx, Nu, 35, seq[k], lastc=lastc, offbit=offbit)
         #idx, key[0], hd, nt = idx, Nu, 35, seq[k]
         #h = lastc[hd] << offbit
         #d = lastc[nt]
@@ -1392,8 +1423,7 @@ def kmer2dict(seq, kmer_dict, kmer=12, bit=5, offbit=offbit, lastc=lastc, alpha=
         #else:
         #    kmer_dict.push(key, h | d)
 
-
-        idx += 1
+        #idx += 1
         shift = bit ** (k - 1)
         for i in xrange(k, n-1):
             cc = alpha[seq[i]]
@@ -1402,7 +1432,7 @@ def kmer2dict(seq, kmer_dict, kmer=12, bit=5, offbit=offbit, lastc=lastc, alpha=
             hd = int(seq[i-k])
             nc = int(seq[i+1])
 
-            add_node(kmer_dict, key, idx, Nu, hd, nc, lastc=lastc, offbit=offbit)
+            add_kmer(kmer_dict, key, idx, Nu, hd, nc, lastc=lastc, offbit=offbit)
             #idx, key[0], hd, nt = idx, Nu, hd, nc
             #h = lastc[hd] << offbit
             #d = lastc[nt]
@@ -1412,9 +1442,9 @@ def kmer2dict(seq, kmer_dict, kmer=12, bit=5, offbit=offbit, lastc=lastc, alpha=
             #else:
             #    kmer_dict.push(key, h | d)
 
-            idx += 1
-            if idx % 10**7 == 0:
-                print('idx is', idx)
+            #idx += 1
+            #if idx % 10**7 == 0:
+            #    print('idx is', idx)
 
         #cc = alpha[ord(seq[i+1])]
         cc = alpha[seq[i+1]]
@@ -1424,7 +1454,7 @@ def kmer2dict(seq, kmer_dict, kmer=12, bit=5, offbit=offbit, lastc=lastc, alpha=
         #output[0], output[1], output[2], output[3] = idx, Nu, hd, 36
         #yield output
 
-        add_node(kmer_dict, key, idx, Nu, hd, 36, lastc=lastc, offbit=offbit)
+        add_kmer(kmer_dict, key, idx, Nu, hd, 36, lastc=lastc, offbit=offbit)
         #idx, key[0], hd, nt = idx, Nu, hd, 36
         #h = lastc[hd] << offbit
         #d = lastc[nt]
@@ -1432,12 +1462,12 @@ def kmer2dict(seq, kmer_dict, kmer=12, bit=5, offbit=offbit, lastc=lastc, alpha=
         #    val = kmer_dict.get(key)
         #    print('yes, wtf before', val,'h', h, 'd', d, val|h|d)
         #    #kmer_dict.push(key, val|h|d)
-        #    add_node(kmer_dict, key, idx, Nu, hd, 36, lastc=lastc, offbit=offbit)
+        #    add_kmer(kmer_dict, key, idx, Nu, hd, 36, lastc=lastc, offbit=offbit)
         #    print('yes, wtf after', kmer_dict.get(key), val|h|d, kmer_dict.get(key)==val|h|d)
         #else:
         #    print('no, wtf before', val, 'h', h, 'd', d, h|d)
         #    kmer_dict.push(key, h|d)
-        #    add_node(kmer_dict, key, idx, Nu, hd, 36, lastc=lastc, offbit=offbit)
+        #    add_kmer(kmer_dict, key, idx, Nu, hd, 36, lastc=lastc, offbit=offbit)
         #    print('no, wtf after', kmer_dict.get(key), h|d, kmer_dict.get(key)==h|d)
 
     elif n == k:
@@ -1445,7 +1475,7 @@ def kmer2dict(seq, kmer_dict, kmer=12, bit=5, offbit=offbit, lastc=lastc, alpha=
         #output[0], output[1], output[2], output[3] = 0, k2n_jit_(seq), 35, 36
         #yield output
 
-        add_node(kmer_dict, key, 0, k2n_jit_(seq), 35, 36, lastc=lastc, offbit=offbit)
+        add_kmer(kmer_dict, key, 0, k2n_jit_(seq), 35, 36, lastc=lastc, offbit=offbit)
         #idx, key[0], hd, nt = 0, k2n_jit_(seq), 35, 36
         #h = lastc[hd] << offbit
         #d = lastc[nt]
@@ -1461,7 +1491,7 @@ def kmer2dict(seq, kmer_dict, kmer=12, bit=5, offbit=offbit, lastc=lastc, alpha=
         #output[0], output[1], output[2], output[3] = 0, -1, 35, 36
         #yield output
 
-        add_node(kmer_dict, key, 0, -1, 35, 36, lastc=lastc, offbit=offbit)
+        add_kmer(kmer_dict, key, 0, -1, 35, 36, lastc=lastc, offbit=offbit)
         #idx, key[0], hd, nt = 0, -1, 35, 36
         #h = lastc[hd] << offbit
         #d = lastc[nt]
@@ -1470,6 +1500,7 @@ def kmer2dict(seq, kmer_dict, kmer=12, bit=5, offbit=offbit, lastc=lastc, alpha=
         #    kmer_dict.push(key, val | h | d)
         #else:
         #    kmer_dict.push(key, h | d)
+    return 0
 
 spec = {}
 spec['capacity'] = nb.int64
@@ -1481,7 +1512,39 @@ spec['keys'] = spec['ktype'][:]
 spec['vtype'] = nb.uint16
 spec['values'] = spec['vtype'][:]
 spec['counts'] = nb.uint8[:]
-def seq2rdbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoint', saved='dBG_disk', hashfunc=oakht, jit=True, spec=spec):
+
+# init my own hash table in jit
+def init_dict(hashfunc=oakht, capacity=2**20, ksize=1, ktype=nb.uint64, vtype=nb.uint32, jit=True):
+    if jit:
+        spec = {}
+        spec['capacity'] = nb.int64
+        spec['load'] = nb.float32
+        spec['size'] = nb.int64
+        spec['ksize'] = nb.int64
+
+        #spec['ktype'] = nb.uint64
+        #spec['keys'] = spec['ktype'][:]
+        #spec['vtype'] = nb.uint16
+        #spec['values'] = spec['vtype'][:]
+
+        spec['ktype'] = ktype
+        spec['keys'] = spec['ktype'][:]
+        spec['vtype'] = vtype
+        spec['values'] = spec['vtype'][:]
+
+        spec['counts'] = nb.uint8[:]
+        clf = nb.jitclass(spec)(hashfunc)
+
+    else:
+        clf = hashfunc
+
+    dct = clf(capacity=2**20, ksize=1, ktype=nb.uint64, vtype=nb.uint16)
+    return dct
+ 
+
+# build the dBG
+#def seq2rdbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoint', saved='dBG_disk', hashfunc=oakht, jit=True, spec=spec):
+def seq2rdbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoint', saved='dBG_disk', hashfunc=oakht, jit=True):
 
     kmer = min(max(1, kmer), 27)
     size = int(pow(bits, kmer)+1)
@@ -1493,18 +1556,25 @@ def seq2rdbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoi
         kmer_dict = hashfunc(2**20, load_factor=.75)
         kmer_dict.loading(rec)
 
-    elif kmer <= 13:
-        kmer_dict = mmapht(size, 'int16')
+    #elif kmer <= 13:
+    #    kmer_dict = mmapht(size, 'int16')
 
     else:
-        if jit and spec:
-            hashfunc_jit = nb.jitclass(spec)(hashfunc)
-        else:
-            hashfunc_jit = hashfunc
+        #if jit and spec:
+        #    print('using jit')
+        #    hashfunc_jit = nb.jitclass(spec)(hashfunc)
+        #else:
+        #    print('no jit')
+        #    hashfunc_jit = hashfunc
+        #hashfunc_jit = init_dict(hashfunc=oakht, capacity=2**20, ksize=1, ktype=nb.uint64, vtype=nb.uint16, jit=jit)
 
         #kmer_dict = hashfunc_jit(2**20, load_factor=.75)
-        kmer_dict = hashfunc_jit(capacity=2**20, ksize=1, ktype=spec['ktype'], vtype=spec['vtype'])
- 
+        #kmer_dict = hashfunc_jit(capacity=2**20, ksize=1, ktype=spec['ktype'], vtype=spec['vtype'])
+        #kmer_dict = hashfunc_jit(capacity=2**20, ksize=1, ktype=nb.uint64, vtype=nb.uint16)
+        kmer_dict = init_dict(hashfunc=oakht, capacity=2**20, ksize=1, ktype=nb.uint64, vtype=nb.uint16, jit=jit)
+
+
+
     #print('rdbg size', len(kmer_dict))
     seq_type = seq_chk(qry)
 
@@ -1518,6 +1588,7 @@ def seq2rdbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoi
         seq_fw = str(i.seq)
         seq_rv = str(i.reverse_complement().seq)
 
+        print('before adding node', i.id, len(seq_fw), 'clf size', kmer_dict.size, 'seq len', N)
 
         for seq in [seq_fw, seq_rv]:
             n = len(seq)
@@ -1530,11 +1601,15 @@ def seq2rdbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoi
             #        kmer_dict[k] = (h | d)
 
             seq_array = np.frombuffer(seq.encode(), dtype='uint8')
+
             #kmer2dict(seq_array, kmer, bits, lastc, offbit, kmer_dict)
-            kmer2dict(seq_array, kmer_dict, kmer=kmer, bit=bits, offbit=offbit, lastc=lastc, alpha=alpha)
+            res = kmer2dict(seq_array, kmer_dict, kmer=kmer, bit=bits, offbit=offbit, lastc=lastc, alpha=alpha)
+
 
             N += n
             flag += n
+
+        print('after adding nodes', i.id, 'clf size', kmer_dict.size, 'seq len', N)
 
         # save the breakpoint
         if flag > chunk:
@@ -1554,10 +1629,152 @@ def seq2rdbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoi
     #kmer_dict.dump(saved)
 
     f.close()
+
+    #for hn in kmer_dict.itervalues():
+    #    pr = nbit(hn >> offbit)
+    #    sf = nbit(hn & lowbit)
+    #    #print('pr', pr, 'sf', sf)
+    #    if pr == sf == 1 and sf != 0b100000:
+    #        continue
+    #    else:
+    #        print('1615 yes, find', pr, sf)
+    #
+    #print('1585 end')
+    #raise SystemExit()
+
     return kmer_dict
 
+# check if a kmer in dbg is also in rdbg:
+@nb.njit
+def kmer_in_rdbg(ht, i):
+    if ht.has_key(i):
+        hn = ht.get([i])
+    else:
+        return False
+
+    if hn > 0:
+        pr = nbit_jit_(hn >> offbit)
+        sf = nbit_jit_(hn & lowbit)
+        #print('pr', pr, 'sf', sf)
+        if pr == sf == 1 and sf != 0b100000:
+            return False
+        else:
+            return True
+    else:
+        return False
 
 
+# build rdbg from dbg
+@nb.njit
+def build_rdbg(rdbg_dict, kmer_dict):
+    for kv in kmer_dict.iteritems():
+        k, hn = kv
+        #print('kv is', type(k))
+        pr = nbit_jit_(hn >> offbit)
+        sf = nbit_jit_(hn & lowbit)
+        if pr == sf == 1 and sf != 0b100000:
+            continue
+        else:
+            rdbg_dict.push(k, hn)
+
+    return rdbg_dict
+
+
+# get the weight of edge
+@nb.njit
+def rdbg_edge_weight(rdbg_edge, rdbg_dict, seq, kmer, bits=5):
+    minus_one = nb.uint64(-1)
+
+    # path_cmpr has 4 elem
+    #path_cmpr = List()
+    #path_cmpr.append(minus_one)
+    #path_cmpr.clear()
+    path_cmpr = List.empty_list(nb.uint64)
+
+    # path_rdbg has 3 elem
+    #path_rdbg = List()
+    #path_rdbg.append(minus_one)
+    #path_rdbg.clear()
+    path_rdbg = List.empty_list(nb.uint64)
+
+   
+    idx, idx_prev = minus_one, minus_one
+    for output in seq2ns_jit_(seq, kmer, bits):
+        #idx, k, hd, nt = output[0], output[1], output[2], output[3]
+        idx, k, hd, nt = output
+        if k == minus_one:
+            continue
+
+        key = output[1:2]
+
+        if rdbg_dict.has_key(key):
+
+            #path_rdbg.append((k, hd, nt))
+            #path_rdbg.extend((k, hd, nt))
+            path_rdbg.extend(output[1:4])
+            #path_rdbg.append(output[1:4])
+            #path_rdbg.append(k)
+            #path_rdbg.append(hd)
+            #path_rdbg.append(nt)
+
+            if idx_prev == minus_one or idx_prev + kmer <= idx:
+                #path_cmpr.append([idx, k, hd, nt, n2k_(k, K=kmer)])
+                #path_cmpr.extend([idx, k, hd, nt])
+                path_cmpr.extend(output)
+                #path_cmpr.append(output[:])
+                #path_cmpr.append(idx)
+                #path_cmpr.append(k)
+                #path_cmpr.append(hd)
+                #path_cmpr.append(nt)
+                idx_prev = idx
+
+    # if path is empty, then sequence has non-repetitive k-mer, add the last k-mer to path
+    if len(path_cmpr) == 0:
+        #path_cmpr = [[idx, k, hd, nt, n2k_(k, K=kmer)]]
+        #path_cmpr = [[idx, k, hd, nt]]
+        #path_cmpr = [idx, k, hd, nt]
+        path_cmpr.extend(output)
+        #path_cmpr.append(output[:])
+        #path_cmpr.append(idx)
+        #path_cmpr.append(k)
+        #path_cmpr.append(hd)
+        #path_cmpr.append(nt)
+
+    N = len(path_rdbg)
+    visit = {}
+    #for i in range(N-1):
+    for i in range(0, N-3, 3):
+        #n0, n1 = path_rdbg[idx:idx+2]
+        #n0, hd0, nt0 = path_rdbg[idx]
+        n0, hd0, nt0 = path_rdbg[i: i+3]
+        #n0, hd0, nt0 = path_rdbg[idx], path_rdbg[idx+1], path_rdbg[idx+2]
+
+        h0 = lastc[hd0] << offbit
+        d0 = lastc[nt0]
+ 
+        #n1, hd1, nt1 = path_rdbg[idx+1]
+        n1, hd1, nt1 = path_rdbg[i+3: i+6]
+        #n1, hd1, nt1 = path_rdbg[idx+3], path_rdbg[idx+4], path_rdbg[idx+5]
+
+        h1 = lastc[hd1] << offbit
+        d1 = lastc[nt1]
+
+        k12 = (n0, nb.uint64(h0|d0), n1, nb.uint64(h1|d1))
+
+        # remove the repeat in the same sequences
+        if k12 not in visit:
+            visit[k12] = 1
+        else:
+            continue
+
+        try:
+            rdbg_edge[k12] += 1
+        except:
+            rdbg_edge[k12] = 1
+
+    print('1803 break rdbg_edge size', len(rdbg_edge))
+    del visit
+    return 0
 
 # convert sequences to paths and build the graph
 def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc=oakht, jit=True, spec=spec):
@@ -1582,78 +1799,97 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
     #print('kmer_dict of size', len(kmer_dict), saved)
     # find weight for rDBG
     #rdbg = oamkht(mkey=4, val_type='uint32')
-    spec['vtype'] = nb.uint16
-    spec['values'] = spec['vtype'][:]
-    if jit and spec:
-        hashfunc_jit = nb.jitclass(spec)(hashfunc)
-    else:
-        hashfunc_jit = hashfunc
-    rdbg = hashfunc_jit(capacity=2**20, ksize=2, ktype=spec['ktype'], vtype=spec['vtype'])
+    #spec['vtype'] = nb.uint16
+    #spec['values'] = spec['vtype'][:]
+    #if jit and spec:
+    #    hashfunc_jit = nb.jitclass(spec)(hashfunc)
+    #else:
+    #    hashfunc_jit = hashfunc
 
+    # use numba dict
+    #rdbg = hashfunc_jit(capacity=2**20, ksize=4, ktype=spec['ktype'], vtype=spec['vtype'])
+    
+    #hashfunc_jit = init_dict(hashfunc=oakht, ktype=nb.uint64, vtype=nb.uint16, jit=jit)
+
+    rdbg_dict = init_dict(hashfunc=oakht, capacity=2**20, ksize=kmer_dict.ksize, ktype=nb.uint64, vtype=nb.uint16, jit=jit)
+    rdbg_dict = build_rdbg(rdbg_dict, kmer_dict)
+
+
+    del kmer_dict
+    gc.collect()
+
+    rdbg_edge = Dict()
+    zero = nb.uint64(0)
+    rdbg_edge[(zero, zero, zero, zero)] = 0
+    #rdbg_edge[(0, 0, 0, 0)] = 0
     N = 0
 
     for i in SeqIO.parse(qry, seq_type):
         seq_fw = str(i.seq)
-
-    #for header, sq in seqio(qry):
-    #    seq_fw = sq
-
         for seq in [seq_fw]:
-            path_cmpr = []
-            path_rdbg = []
-            idx_prev = -1
-            for idx, k, hd, nt in seq2ns_(seq, kmer, bits):
-                if k == -1:
-                    continue
 
-                if query(kmer_dict, k):
-                    path_rdbg.append([k, hd, nt])
-                    if idx_prev == -1 or idx_prev + kmer <= idx:
-                        path_cmpr.append([idx, k, hd, nt, n2k_(k, K=kmer)])
-                        idx_prev = idx
-
-            # if path is empty, then sequence has non-repetitive k-mer, add the last k-mer to path
-            if not path_cmpr:
-                path_cmpr = [[idx, k, hd, nt, n2k_(k, K=kmer)]]
-
-            #print('path', path_cmpr)
-            visit = set()
-            for idx in xrange(len(path_rdbg)-1):
-                #n0, n1 = path_rdbg[idx:idx+2]
-                n0, hd0, nt0 = path_rdbg[idx]
-                h0 = lastc[ord(hd0)] << offbit
-                d0 = lastc[ord(nt0)]
- 
-                n1, hd1, nt1 = path_rdbg[idx+1]
-                h1 = lastc[ord(hd1)] << offbit
-                d1 = lastc[ord(nt1)]
- 
-                k12 = (n0, h0|d0, n1, h1|d1)
-
-                # remove the repeat in the same sequences
-                if k12 not in visit:
-                    visit.add(k12)
-                else:
-                    continue
-
-                try:
-                    rdbg[k12] += 1
-                except:
-                    rdbg[k12] = 1
+            seq_array = np.frombuffer(seq.encode(), dtype='uint8')
+            res = rdbg_edge_weight(rdbg_edge, rdbg_dict, seq_array, kmer, bits)
+            #print('1856 break', len(rdbg_edge))
+            #path_cmpr = []
+            #path_rdbg = []
+            #idx_prev = -1
+            #for idx, k, hd, nt in seq2ns_(seq, kmer, bits):
+            #    if k == -1:
+            #        continue
+            #
+            #    if query(kmer_dict, k):
+            #        path_rdbg.append([k, hd, nt])
+            #        if idx_prev == -1 or idx_prev + kmer <= idx:
+            #            path_cmpr.append([idx, k, hd, nt, n2k_(k, K=kmer)])
+            #            idx_prev = idx
+            #
+            ## if path is empty, then sequence has non-repetitive k-mer, add the last k-mer to path
+            #if not path_cmpr:
+            #    path_cmpr = [[idx, k, hd, nt, n2k_(k, K=kmer)]]
+            #
+            #print('path 1635', path_rdbg)
+            #visit = set()
+            #for idx in xrange(len(path_rdbg)-1):
+            #    #n0, n1 = path_rdbg[idx:idx+2]
+            #    n0, hd0, nt0 = path_rdbg[idx]
+            #    h0 = lastc[ord(hd0)] << offbit
+            #    d0 = lastc[ord(nt0)]
+            #
+            #    n1, hd1, nt1 = path_rdbg[idx+1]
+            #    h1 = lastc[ord(hd1)] << offbit
+            #    d1 = lastc[ord(nt1)]
+            #
+            #    k12 = np.asarray([n0, h0|d0, n1, h1|d1])
+            #
+            #    # remove the repeat in the same sequences
+            #    if k12 not in visit:
+            #        visit.add(k12)
+            #    else:
+            #        continue
+            #
+            #    try:
+            #        rdbg[k12] += 1
+            #    except:
+            #        rdbg[k12] = 1
 
             n = len(seq)
         N += n
         if N > Ns:
             break
 
-    #print('rdbg size', len(rdbg))
+    print('1902 break end', len(rdbg_edge))
+    raise SystemExit()
+
+    print('rdbg size 1665', len(rdbg))
     _oname = qry + '_rdbg_weight.xyz'
     _o = open(_oname, 'w')
-    for k12 in rdbg:
+    for k12 in rdbg.iteritems():
         #n0, n1 = k12
-        n0, hd0, n1, hd1 = k12
+        (n0, hd0, n1, hd1), val = k12
         #xyz = '%d\t%d\t%d\n'%(n0, n1, rdbg[k12])
-        xyz = '%d_%d\t%d_%d\t%d\n'%(n0, hd0, n1, hd1, rdbg[k12])
+        #xyz = '%d_%d\t%d_%d\t%d\n'%(n0, hd0, n1, hd1, rdbg[k12])
+        xyz = '%d_%d\t%d_%d\t%d\n'%(n0, hd0, n1, hd1, val)
         _o.write(xyz)
 
     _o.close()
@@ -1667,7 +1903,16 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
 
     # load the cluster
     #label_dct = oamkht(2 ** 20, val_type='int32')
-    label_dct = oamkht(2 ** 20, mkey=2, val_type='int32')
+    #label_dct = oamkht(2 ** 20, mkey=2, val_type='int32')
+
+    spec['vtype'] = nb.uint32
+    spec['values'] = spec['vtype'][:]
+    if jit and spec:
+        hashfunc_jit = nb.jitclass(spec)(hashfunc)
+    else:
+        hashfunc_jit = hashfunc
+ 
+    label_dct = hashfunc_jit(capacity=2**20, ksize=2, ktype=spec['ktype'], vtype=spec['vtype'])
 
     flag = 0
     f = open(_oname+'.mcl', 'r')
@@ -1681,6 +1926,7 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
         flag += 1
 
     f.close()
+
 
     # add the rest kmer
     f = open(_oname, 'r')
@@ -1701,8 +1947,9 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
             label_dct[kk] = flag
             flag += 1
 
+
     N = 0
-    print('label_dct', len(label_dct))
+    print('label_dct', label_dct.size)
     for i in SeqIO.parse(qry, seq_type):
     #    #print('id', i.id)
         seq_fw = str(i.seq)
@@ -1767,6 +2014,180 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
         if N > Ns:
             break
 
+    print('end', 1798)
+    #return kmer_dict
+    return label_dct
+
+
+
+
+def seq2graph0(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc=oakht, jit=True, spec=spec):
+
+    kmer = min(max(1, kmer), 27)
+    if kmer_dict != None:
+        saved = None
+    elif kmer <= 13:
+        size = int(pow(bits, kmer)+1)
+        kmer_dict = mmapht(size, 'int16')
+    else:
+        kmer_dict = hashfunc(2**20, load_factor=.75)
+
+    # find the type of sequences
+    seq_type = seq_chk(qry)
+
+    # load the graph on disk
+    if saved:
+        #print('before load', len(kmer_dict))
+        load_dbg(saved, kmer_dict)
+
+    spec['vtype'] = nb.uint16
+    spec['values'] = spec['vtype'][:]
+    if jit and spec:
+        hashfunc_jit = nb.jitclass(spec)(hashfunc)
+    else:
+        hashfunc_jit = hashfunc
+    rdbg = hashfunc_jit(capacity=2**20, ksize=4, ktype=spec['ktype'], vtype=spec['vtype'])
+
+    N = 0
+
+    for i in SeqIO.parse(qry, seq_type):
+        seq_fw = str(i.seq)
+
+        for seq in [seq_fw]:
+            path_cmpr = []
+            path_rdbg = []
+            idx_prev = -1
+            for idx, k, hd, nt in seq2ns_(seq, kmer, bits):
+                if k == -1:
+                    continue
+
+                if query(kmer_dict, k):
+                    path_rdbg.append([k, hd, nt])
+                    if idx_prev == -1 or idx_prev + kmer <= idx:
+                        path_cmpr.append([idx, k, hd, nt, n2k_(k, K=kmer)])
+                        idx_prev = idx
+
+            # if path is empty, then sequence has non-repetitive k-mer, add the last k-mer to path
+            if not path_cmpr:
+                path_cmpr = [[idx, k, hd, nt, n2k_(k, K=kmer)]]
+
+            visit = set()
+            for idx in xrange(len(path_rdbg)-1):
+                n0, hd0, nt0 = path_rdbg[idx]
+                h0 = lastc[ord(hd0)] << offbit
+                d0 = lastc[ord(nt0)]
+ 
+                n1, hd1, nt1 = path_rdbg[idx+1]
+                h1 = lastc[ord(hd1)] << offbit
+                d1 = lastc[ord(nt1)]
+ 
+                k12 = np.asarray([n0, h0|d0, n1, h1|d1])
+
+                # remove the repeat in the same sequences
+                if k12 not in visit:
+                    visit.add(k12)
+                else:
+                    continue
+
+                try:
+                    rdbg[k12] += 1
+                except:
+                    rdbg[k12] = 1
+
+            n = len(seq)
+        N += n
+        if N > Ns:
+            break
+
+    print('rdbg size 1665', rdbg.size)
+    _oname = qry + '_rdbg_weight.xyz'
+    _o = open(_oname, 'w')
+    for k12 in rdbg.iteritems():
+        #n0, n1 = k12
+        (n0, hd0, n1, hd1), val = k12
+        xyz = '%d_%d\t%d_%d\t%d\n'%(n0, hd0, n1, hd1, val)
+        _o.write(xyz)
+
+    _o.close()
+
+    # call the mcl for clustering
+    os.system('mcl %s --abc -I 1.5 -te 8 -o %s.mcl'%(_oname, _oname))
+
+    del rdbg
+    del kmer_dict
+    gc.collect()
+
+    spec['vtype'] = nb.uint32
+    spec['values'] = spec['vtype'][:]
+    if jit and spec:
+        hashfunc_jit = nb.jitclass(spec)(hashfunc)
+    else:
+        hashfunc_jit = hashfunc
+ 
+    label_dct = hashfunc_jit(capacity=2**20, ksize=2, ktype=spec['ktype'], vtype=spec['vtype'])
+
+    flag = 0
+    f = open(_oname+'.mcl', 'r')
+    for i in f:
+        j = i[:-1].split('\t')
+        for k in j:
+            ky = tuple(map(int, k.split('_')[:2]))
+            label_dct[ky] = flag
+
+        flag += 1
+
+    f.close()
+
+    # add the rest kmer
+    f = open(_oname, 'r')
+    for i in f:
+        j, k = i[:-1].split('\t')[:2]
+
+        kj = tuple(map(int, j.split('_')[:2]))
+        if not label_dct.has_key(kj):
+            #label_dct[j] = flag
+            label_dct[kj] = flag
+            flag += 1
+
+        kk = tuple(map(int, k.split('_')[:2]))
+        if not label_dct.has_key(kk):
+            label_dct[kk] = flag
+            flag += 1
+
+
+    N = 0
+    print('label_dct', label_dct.size)
+    for i in SeqIO.parse(qry, seq_type):
+        seq_fw = str(i.seq)
+
+        for seq in [seq_fw]:
+            starts = [0]
+            labels = [-1]
+            for idx, k, hd, nt in seq2ns_(seq, kmer, bits):
+
+                h = lastc[ord(hd)] << offbit
+                d = lastc[ord(nt)]
+                kk = (k, h|d)
+ 
+                if label_dct.has_key(kk):
+                    label = label_dct[kk]
+                    if starts[-1] < idx:
+
+                        if labels[-1] != label:
+                            labels.append(label)
+                            starts.append(idx+kmer)
+                        # the same region, just extend it.
+                        else:
+                            starts[-1] = idx + kmer
+
+            for idx in xrange(1, len(starts)):
+                print('%s\t%d\t%d\t%s\t%d'%(i.id, starts[idx-1], starts[idx], '+', labels[idx]))
+
+        N += len(seq_fw)
+        if N > Ns:
+            break
+
+    print('end', 1798)
     #return kmer_dict
     return label_dct
 
@@ -1844,7 +2265,7 @@ def entry_point(argv):
         seq = np.frombuffer(string.encode(), dtype=np.uint8)
         np.random.shuffle(seq)
 
-        kmer2dict(seq, clf, 27)
+        res = kmer2dict(seq, clf, 27)
         print('finish', clf.size, (clf.counts>0).sum())
         raise SystemExit()
 
