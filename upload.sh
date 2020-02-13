@@ -2,6 +2,8 @@
 
 rm -f ./test/pan_genome.fsa
 
+#exit 0
+
 git config --global user.email xiao.hu1@montana.edu
 git config --global user.name Rinoahu
 
