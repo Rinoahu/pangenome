@@ -311,6 +311,7 @@ class oakht:
         for i in xrange(0, self.counts.shape[0]):
             ik = i * ks
             if self.counts[i] > 0:
+                #print('k size', ks)
                 yield self.keys[ik:ik+ks], self.values[i]
 
     def len(self):
@@ -784,7 +785,7 @@ def init_dict(hashfunc=oakht, capacity=2**20, ksize=1, ktype=nb.uint64, vtype=nb
     else:
         clf = hashfunc
 
-    dct = clf(capacity=2**20, ksize=1, ktype=nb.uint64, vtype=nb.uint16)
+    dct = clf(capacity=2**20, ksize=ksize, ktype=ktype, vtype=vtype)
     return dct
  
 
@@ -1116,105 +1117,64 @@ def entry_point(argv):
         print('test', N)
 
         # the spec for jitclass
-        spec = {}
-        spec['capacity'] = nb.int64
-        spec['load'] = nb.float32
-        spec['size'] = nb.int64
-        spec['ksize'] = nb.int64
-        spec['ktype'] = nb.uint64
-        spec['keys'] = spec['ktype'][:]
-        spec['vtype'] = nb.uint16
-        spec['values'] = spec['vtype'][:]
-        spec['counts'] = nb.uint8[:]
+        #spec = {}
+        #spec['capacity'] = nb.int64
+        #spec['load'] = nb.float32
+        #spec['size'] = nb.int64
+        #spec['ksize'] = nb.int64
+        #spec['ktype'] = nb.uint64
+        #spec['keys'] = spec['ktype'][:]
+        #spec['vtype'] = nb.uint16
+        #spec['values'] = spec['vtype'][:]
+        #spec['counts'] = nb.uint8[:]
+
 
         pypy = platform.python_implementation().lower() 
         if pypy == 'pypy':
-            oakht_jit = oakht
+            clf = oakht(ksize=mkey)
         else:
-            oakht_jit = nb.jitclass(spec)(oakht)
+            #oakht_jit = nb.jitclass(spec)(oakht)
+            #clf = oakht_jit(capacity=int(N * 1.34), ksize=1, ktype=spec['ktype'], vtype=spec['vtype'])
+            #clf = init_dict(ksize=mkey, ktype=nb.uint64, vtype=nb.uint32)
+            clf = init_dict(hashfunc=oakht, capacity=2**20, ksize=mkey, ktype=nb.uint64, vtype=nb.uint16, jit=True)
 
-        clf = oakht_jit(capacity=int(N * 1.34), ksize=1, ktype=spec['ktype'], vtype=spec['vtype'])
         string = 'ATGC' * (N // 4)
         seq = np.frombuffer(string.encode(), dtype=np.uint8)
         np.random.shuffle(seq)
 
-        res = kmer2dict(seq, clf, 27)
-        print('finish', clf.size, (clf.counts>0).sum())
-        raise SystemExit()
-
-
-        clf = oakht_jit(capacity=N, ksize=mkey, ktype=spec['ktype'], vtype=spec['vtype'])
-        #clf = oakht_jit(capacity=int(N * 1.75), ksize=mkey, ktype=spec['ktype'], vtype=spec['vtype'])
-
         print('initial finish', 'python version', pypy)
+        #@nb.njit
         def oa_test(N, k, clf):
-
-            x = [randint(0, N) for elem in range(N)]
-            for i in range(N-k+1):
-                clf.push(x[i:i+k], i)
-                #clf.push(np.random.randint(0, N, k), i)
-
-            flag = 0
-            for i in range(N-k+1):
-                #clf.push(x[i:i+k], i)
-                #clf.push(np.random.randint(0, N, k), i)
-                if not clf.has_key(x[i:i+k]):
-                    flag += 1
-
-            print('x err', flag)
-
-            # check random generated array
-            flag = 0
-            y = [randint(0, N) for elem in range(N)]
-            for i in range(N-k+1):
-                if clf.has_key(y[i:i+k]):
-                    flag += 1
-
-            print('y err', flag)
-
-            flag = 0
-            for kv in clf.iteritems():
-                print('item is', kv)
-                if flag > 5:
-                    break
-                flag += 1
-
-        @nb.njit
-        def oa_test_jit(N, k, clf):
             x = np.random.randint(0, N, N)
             for i in range(N-k+1):
                 clf.push(x[i:i+k], i)
-                #clf.push(np.random.randint(0, N, k), i)
 
             flag = 0
             for i in range(N-k+1):
-                #clf.push(x[i:i+k], i)
-                #clf.push(np.random.randint(0, N, k), i)
                 if not clf.has_key(x[i:i+k]):
                     flag += 1
 
-            print('x err', flag)
-
-            # check random generated array
+            print('x err', flag, 'ksize', k)
             flag = 0
             y = np.random.randint(0, N, N)
             for i in range(N-k+1):
                 if clf.has_key(y[i:i+k]):
                     flag += 1
 
-            print('y err', flag)
-
+            print('y err', flag, 'ksize', k)
             flag = 0
             for kv in clf.iteritems():
-                print('item is', kv)
+                print('key is', kv[0], 'val is', kv[1])
                 if flag > 5:
                     break
                 flag += 1
 
-        print('numba version')
         if pypy == 'pypy':
+            print('pypy version')
             oa_test(N, mkey, clf)
         else:
+            print('numba version')
+            oa_test_jit = nb.jit(oa_test)
             oa_test_jit(N, mkey, clf)
         raise SystemExit()
 
