@@ -1,7 +1,10 @@
 #!/bin/bash
 
-rm -f ./test/pan_genome.fsa
+cd ./test
+rm -f pan_genome.fsa* log.* test.fsa_*
+cd ../
 
+echo $PWD
 #exit 0
 
 git config --global user.email xiao.hu1@montana.edu
