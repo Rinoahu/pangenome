@@ -55,8 +55,12 @@ except:
             self.longlong = int
             self.ulonglong = int
 
-            self.njit = lambda x: x
-            self.jitclass = lambda x: x
+            #self.njit = lambda x: lambda y: y
+            def njit(inline='never', spec={}):
+                return lambda x: x
+
+            self.njit = njit
+            self.jitclass = njit
 
     nb = NB()
 
@@ -655,8 +659,8 @@ def load_dbg(saved, kmer_dict):
     return 0
 
 
-@nb.njit(inline='always')
-def k2n_jit_(kmer, bit=5, alpha=alpha):
+#@nb.njit(inline='always')
+def k2n_jit(kmer, bit=5, alpha=alpha):
     #N = nb.ulonglong(0)
     N = idx = 0
     #for i in xrange(len(kmer)):
@@ -667,6 +671,10 @@ def k2n_jit_(kmer, bit=5, alpha=alpha):
         idx += 1
 
     return N
+
+#@nb.njit(inline='always')
+k2n_jit_ = nb.njit(inline='always')(k2n_jit)
+
 
 @nb.njit
 def seq2ns_jit_(seq, k=12, bit=5, alpha=alpha):
@@ -725,8 +733,11 @@ def add_kmer(kmer_dict, key, idx, Nu, hd, nc, lastc=lastc, offbit=offbit):
         kmer_dict.push(key, h | d)
 
 
-@nb.njit
-def kmer2dict(seq, kmer_dict, kmer=12, bit=5, offbit=offbit, lastc=lastc, alpha=alpha):
+#@nb.njit
+# build dbg from kmer
+#def kmer2dict(seq, kmer_dict, kmer=12, bit=5, offbit=offbit, lastc=lastc, alpha=alpha):
+def build_dbg(seq, kmer_dict, kmer=12, bit=5, offbit=offbit, lastc=lastc, alpha=alpha):
+
     k = kmer
     key = np.empty(1, dtype=np.uint64)
     # '#' is 35, '$' is 36
@@ -763,6 +774,9 @@ def kmer2dict(seq, kmer_dict, kmer=12, bit=5, offbit=offbit, lastc=lastc, alpha=
         add_kmer(kmer_dict, key, 0, -1, 35, 36, lastc=lastc, offbit=offbit)
 
     return 0
+
+# jit version
+build_dbg_jit_ = nb.njit(build_dbg)
 
 
 # init my own hash table in jit
@@ -824,9 +838,8 @@ def seq2rdbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoi
 
         for seq in [seq_fw, seq_rv]:
             n = len(seq)
-            #seq_array = np.frombuffer(seq.encode(), dtype='uint8')
-            seq_array = seq.encode()
-            res = kmer2dict(seq_array, kmer_dict, kmer=kmer, bit=bits, offbit=offbit, lastc=lastc, alpha=alpha)
+            seq_bytes = seq.encode()
+            res = build_dbg_jit_(seq_bytes, kmer_dict, kmer=kmer, bit=bits, offbit=offbit, lastc=lastc, alpha=alpha)
             N += n
             flag += n
 
@@ -970,9 +983,8 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
     for i in SeqIO.parse(qry, seq_type):
         seq_fw = str(i.seq)
         for seq in [seq_fw]:
-            #seq_array = np.frombuffer(seq.encode(), dtype='uint8')
-            seq_array = seq.encode()
-            res = rdbg_edge_weight(rdbg_edge, rdbg_dict, seq_array, kmer, bits)
+            seq_bytes = seq.encode()
+            res = rdbg_edge_weight(rdbg_edge, rdbg_dict, seq_bytes, kmer, bits)
             n = len(seq)
 
         N += n
@@ -1139,7 +1151,8 @@ def entry_point(argv):
             clf = init_dict(hashfunc=oakht, capacity=2**20, ksize=mkey, ktype=nb.uint64, vtype=nb.uint16, jit=True)
 
         string = 'ATGC' * (N // 4)
-        seq = np.frombuffer(string.encode(), dtype=np.uint8)
+        #seq = np.frombuffer(string.encode(), dtype=np.uint8)
+        seq = np.frombuffer(string.encode(), dtype='uint8')
         np.random.shuffle(seq)
 
         print('initial finish', 'python version', pypy)
