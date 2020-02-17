@@ -1047,7 +1047,7 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
 
     #print('rdbg size 1665', len(rdbg_edge))
     _oname = qry + '_rdbg_weight.xyz'
-    _oname = './' +  _oname.split(os.sep)[-1]
+    #_oname = './' +  _oname.split(os.sep)[-1]
 
     _o = open(_oname, 'w')
     for key in rdbg_edge:
