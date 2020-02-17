@@ -144,7 +144,14 @@ class oakht:
     def destroy(self):
         #self.counts[:] = 0
         keys_old, values_old, counts_old = self.keys, self.values, self.counts
+
+        keys = np.empty(self.ksize, dtype=keys_old.dtype)
+        values = np.empty(1, dtype=values_old.dtype)
+        counts = np.zeros(1, dtype=counts_old.dtype)
+        self.keys, self.values, self.counts = keys, values, counts
+
         del keys_old, values_old, counts_old
+        #gc.collect()
 
     # whether key0 == key1
     def eq(self, k0, s0, k1, s1, N):
@@ -1017,7 +1024,7 @@ def seq2path_jit_(seq, kmer, label_dct, bits, lastc=lastc, offbit=offbit):
         yield output
 
 # convert sequences to paths and build the graph
-#def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc=oakht, jit=True, spec=spec):
+#def seq2graph0(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc=oakht, jit=True, spec=spec):
 def seq2graph0(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc=oakht, jit=True):
 
     kmer = min(max(1, kmer), 27)
@@ -1160,32 +1167,7 @@ def seq2graph0(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfun
 def seq2graph(qry, kmer=13, bits=5, Ns=1e6, rdbg_dict=None, saved=None, hashfunc=oakht, jit=True):
 
     kmer = min(max(1, kmer), 27)
-    #if kmer_dict != None:
-    #    saved = None
-    #elif kmer <= 13:
-    #    size = int(pow(bits, kmer)+1)
-    #    kmer_dict = mmapht(size, 'int16')
-    #else:
-    #    kmer_dict = hashfunc(2**20, load_factor=.75)
-
-    # load the graph on disk
-    #if saved:
-    #    load_dbg(saved, kmer_dict)
-
-    # find the type of sequences
     seq_type = seq_chk(qry)
-
-    #rdbg_dict = init_dict(hashfunc=oakht, capacity=2**20, ksize=kmer_dict.ksize, ktype=nb.uint64, vtype=nb.uint16, jit=jit)
-    #rdbg_dict = build_rdbg(rdbg_dict, kmer_dict)
-    #rdbg_dict = build_rdbg(kmer_dict)
-
-    #del kmer_dict.keys
-    #del kmer_dict.values
-    #del kmer_dict.counts
-    #kmer_dict.clear()
-    #kmer_dict.destroy()
-    #del kmer_dict
-    #gc.collect()
 
     rdbg_edge = Dict()
     zero = nb.uint64(0)
@@ -1395,6 +1377,7 @@ def entry_point(argv):
         
         # convert dbg to reduced dbg
         rdbg_dict = dbg2rdbg(kmer_dict)
+        kmer_dict.destroy()
         del kmer_dict
         gc.collect()
 
