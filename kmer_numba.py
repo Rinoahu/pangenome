@@ -1040,9 +1040,6 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
     del kmer_dict
     gc.collect()
 
-    while 1:
-        print('destroy')
-
     rdbg_edge = Dict()
     zero = nb.uint64(0)
     rdbg_edge[(zero, zero, zero, zero)] = 0
