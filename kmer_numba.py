@@ -137,11 +137,17 @@ class oakht:
                 return i
 
     # clear the dict
+    def clear(self):
+        self.counts[:] = 0
+ 
+    # clean data
     def destroy(self):
         #self.counts[:] = 0
-        del self.keys
-        del self.values
-        del self.counts
+        self.keys = np.empty(self.ksize, dtype=self.keys.dtype)
+        self.values = np.empty(1, dtype=self.values.dtype)
+        self.counts = np.zeros(1, dtype=nb.uint8)
+
+
 
     # whether key0 == key1
     def eq(self, k0, s0, k1, s1, N):
