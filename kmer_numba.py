@@ -143,11 +143,8 @@ class oakht:
     # clean data
     def destroy(self):
         #self.counts[:] = 0
-        self.keys = np.empty(self.ksize, dtype=self.keys.dtype)
-        self.values = np.empty(1, dtype=self.values.dtype)
-        self.counts = np.zeros(1, dtype=nb.uint8)
-
-
+        keys_old, values_old, counts_old = self.keys, self.values, self.counts
+        del keys_old, values_old, counts_old
 
     # whether key0 == key1
     def eq(self, k0, s0, k1, s1, N):
@@ -1035,10 +1032,16 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
     rdbg_dict = init_dict(hashfunc=oakht, capacity=2**20, ksize=kmer_dict.ksize, ktype=nb.uint64, vtype=nb.uint16, jit=jit)
     rdbg_dict = build_rdbg(rdbg_dict, kmer_dict)
 
-    #del kmer_dict
+    #del kmer_dict.keys
+    #del kmer_dict.values
+    #del kmer_dict.counts
     #kmer_dict.clear()
     kmer_dict.destroy()
+    del kmer_dict
     gc.collect()
+
+    while 1:
+        print('destroy')
 
     rdbg_edge = Dict()
     zero = nb.uint64(0)
