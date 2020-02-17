@@ -949,6 +949,60 @@ def rdbg_edge_weight(rdbg_edge, rdbg_dict, seq, kmer, bits=5):
     del visit
     return 0
 
+
+# compress the sequences into path and print
+@nb.njit
+def seq2path_jit_(seq, kmer, label_dct, bits, lastc=lastc, offbit=offbit):
+    #starts = [0]
+    starts = List()
+    starts.append(0)
+
+    #labels = [-1]
+    labels = List()
+    labels.append(-1)
+
+    output = np.empty(3, nb.int32)
+
+    for idx, k, hd, nt in seq2ns_jit_(seq, kmer, bits):
+
+        #h = lastc[ord(hd)] << offbit
+        h = lastc[hd] << offbit
+
+        #d = lastc[ord(nt)]
+        d = lastc[nt]
+
+        kk = (nb.int64(k), nb.int64(h|d))
+
+
+        if kk in label_dct:
+            label = label_dct[kk]
+
+            if starts[-1] < idx:
+                pos = nb.int64(idx)+kmer
+                #print('980 breakpoint', label, idx, kmer, pos) 
+
+                # find different conserved region
+                if labels[-1] != label:
+                    labels.append(label)
+                    starts.append(pos)
+                # the same region, just extend it.
+                else:
+                    #starts[-1] = idx + kmer
+                    starts[-1] = pos
+
+        #raise SystemExit()
+
+    for ii in xrange(1, len(starts)):
+        #print('%s\t%d\t%d\t%s\t%d'%(i.id, starts[idx-1], starts[idx], '+', labels[idx]))
+        #print('%s\t%d\t%d\t%s\t%d'%(seqid, starts[idx-1], starts[idx], '+', labels[idx]))
+        #yield starts[idx-1], starts[idx], labels[idx]
+
+        output[0] = starts[ii-1]
+        output[1] = starts[ii]
+        output[2] = labels[ii]
+
+        yield output
+
 # convert sequences to paths and build the graph
 #def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc=oakht, jit=True, spec=spec):
 def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc=oakht, jit=True):
@@ -1044,31 +1098,36 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
         seq_fw = str(i.seq)
 
         for seq in [seq_fw]:
-            starts = [0]
-            labels = [-1]
-            for idx, k, hd, nt in seq2ns_(seq, kmer, bits):
+            
+            seq_bytes = seq.encode()
+            for st, ed, lab in seq2path_jit_(seq_bytes, kmer, label_dct, bits=bits, lastc=lastc, offbit=offbit):
+                print('%s\t%d\t%d\t%s\t%d'%(i.id, st, ed, '+', lab))
 
-                if idx % 10**6 == 0:
-                    print('idx is', idx, len(seq))
+            #starts = [0]
+            #labels = [-1]
+            #for idx, k, hd, nt in seq2ns_(seq, kmer, bits):
+            #
+            #    if idx % 10**6 == 0:
+            #        print('idx is', idx, len(seq))
 
-                h = lastc[ord(hd)] << offbit
-                d = lastc[ord(nt)]
-                kk = (k, h|d)
+            #    h = lastc[ord(hd)] << offbit
+            #    d = lastc[ord(nt)]
+            #    kk = (k, h|d)
  
-                if kk in label_dct:
-                    label = label_dct[kk]
-                    if starts[-1] < idx:
+            #    if kk in label_dct:
+            #        label = label_dct[kk]
+            #        if starts[-1] < idx:
 
-                        # find different conserved region
-                        if labels[-1] != label:
-                            labels.append(label)
-                            starts.append(idx+kmer)
-                        # the same region, just extend it.
-                        else:
-                            starts[-1] = idx + kmer
+            #            # find different conserved region
+            #            if labels[-1] != label:
+            #                labels.append(label)
+            #                starts.append(idx+kmer)
+            #            # the same region, just extend it.
+            #            else:
+            #                starts[-1] = idx + kmer
 
-            for idx in xrange(1, len(starts)):
-                print('%s\t%d\t%d\t%s\t%d'%(i.id, starts[idx-1], starts[idx], '+', labels[idx]))
+            #for idx in xrange(1, len(starts)):
+            #    print('%s\t%d\t%d\t%s\t%d'%(i.id, starts[idx-1], starts[idx], '+', labels[idx]))
 
         N += len(seq_fw)
         if N > Ns:
