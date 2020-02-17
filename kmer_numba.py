@@ -890,7 +890,7 @@ def kmer_in_rdbg(ht, i):
 
 # build rdbg from dbg
 @nb.njit
-def build_rdbg(rdbg_dict, kmer_dict):
+def build_rdbg_jit_(rdbg_dict, kmer_dict):
     for kv in kmer_dict.iteritems():
         k, hn = kv
         pr = nbit_jit_(hn >> offbit)
@@ -900,6 +900,13 @@ def build_rdbg(rdbg_dict, kmer_dict):
         else:
             rdbg_dict.push(k, hn)
 
+    #return rdbg_dict
+
+
+# build rdbg from dbg
+def dbg2rdbg(kmer_dict):
+    rdbg_dict = init_dict(hashfunc=oakht, capacity=2**20, ksize=kmer_dict.ksize, ktype=nb.uint64, vtype=nb.uint16, jit=True)
+    build_rdbg_jit_(rdbg_dict, kmer_dict)
     return rdbg_dict
 
 
@@ -1011,7 +1018,7 @@ def seq2path_jit_(seq, kmer, label_dct, bits, lastc=lastc, offbit=offbit):
 
 # convert sequences to paths and build the graph
 #def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc=oakht, jit=True, spec=spec):
-def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc=oakht, jit=True):
+def seq2graph0(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc=oakht, jit=True):
 
     kmer = min(max(1, kmer), 27)
     if kmer_dict != None:
@@ -1029,8 +1036,9 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
     if saved:
         load_dbg(saved, kmer_dict)
 
-    rdbg_dict = init_dict(hashfunc=oakht, capacity=2**20, ksize=kmer_dict.ksize, ktype=nb.uint64, vtype=nb.uint16, jit=jit)
-    rdbg_dict = build_rdbg(rdbg_dict, kmer_dict)
+    #rdbg_dict = init_dict(hashfunc=oakht, capacity=2**20, ksize=kmer_dict.ksize, ktype=nb.uint64, vtype=nb.uint16, jit=jit)
+    #rdbg_dict = build_rdbg(rdbg_dict, kmer_dict)
+    rdbg_dict = build_rdbg(kmer_dict)
 
     #del kmer_dict.keys
     #del kmer_dict.values
@@ -1141,6 +1149,119 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfunc
 
             #for idx in xrange(1, len(starts)):
             #    print('%s\t%d\t%d\t%s\t%d'%(i.id, starts[idx-1], starts[idx], '+', labels[idx]))
+
+        N += len(seq_fw)
+        if N > Ns:
+            break
+
+    return label_dct
+
+# put sequences in the reduced dbg
+def seq2graph(qry, kmer=13, bits=5, Ns=1e6, rdbg_dict=None, saved=None, hashfunc=oakht, jit=True):
+
+    kmer = min(max(1, kmer), 27)
+    #if kmer_dict != None:
+    #    saved = None
+    #elif kmer <= 13:
+    #    size = int(pow(bits, kmer)+1)
+    #    kmer_dict = mmapht(size, 'int16')
+    #else:
+    #    kmer_dict = hashfunc(2**20, load_factor=.75)
+
+    # load the graph on disk
+    #if saved:
+    #    load_dbg(saved, kmer_dict)
+
+    # find the type of sequences
+    seq_type = seq_chk(qry)
+
+    #rdbg_dict = init_dict(hashfunc=oakht, capacity=2**20, ksize=kmer_dict.ksize, ktype=nb.uint64, vtype=nb.uint16, jit=jit)
+    #rdbg_dict = build_rdbg(rdbg_dict, kmer_dict)
+    #rdbg_dict = build_rdbg(kmer_dict)
+
+    #del kmer_dict.keys
+    #del kmer_dict.values
+    #del kmer_dict.counts
+    #kmer_dict.clear()
+    #kmer_dict.destroy()
+    #del kmer_dict
+    #gc.collect()
+
+    rdbg_edge = Dict()
+    zero = nb.uint64(0)
+    rdbg_edge[(zero, zero, zero, zero)] = 0
+    N = 0
+
+    for i in SeqIO.parse(qry, seq_type):
+        seq_fw = str(i.seq)
+        for seq in [seq_fw]:
+            seq_bytes = seq.encode()
+            res = rdbg_edge_weight(rdbg_edge, rdbg_dict, seq_bytes, kmer, bits)
+            n = len(seq)
+
+        N += n
+        if N > Ns:
+            break
+
+    #print('rdbg size 1665', len(rdbg_edge))
+    _oname = qry + '_rdbg_weight.xyz'
+    #_oname = './' +  _oname.split(os.sep)[-1]
+
+    _o = open(_oname, 'w')
+    for key in rdbg_edge:
+        k12 = tuple(nb.uint64(elem) for elem in key)
+        n0, hd0, n1, hd1 = k12
+        val = rdbg_edge[k12]
+        xyz = '%d_%d\t%d_%d\t%d\n'%(n0, hd0, n1, hd1, val)
+        _o.write(xyz)
+
+    _o.close()
+    
+    # call the mcl for clustering
+    os.system('mcl %s --abc -I 1.5 -te 8 -o %s.mcl > log.mcl'%(_oname, _oname))
+
+    del rdbg_edge
+    del rdbg_dict
+    gc.collect()
+    
+    label_dct = Dict()
+    flag = 0
+    f = open(_oname+'.mcl', 'r')
+    for i in f:
+        j = i[:-1].split('\t')
+        for k in j:
+            ky = tuple(map(int, k.split('_')[:2]))
+            label_dct[ky] = flag
+
+        flag += 1
+
+    f.close()
+
+    # add the rest kmer
+    f = open(_oname, 'r')
+    for i in f:
+        j, k = i[:-1].split('\t')[:2]
+
+        kj = tuple(map(int, j.split('_')[:2]))
+        if kj not in label_dct:
+            label_dct[kj] = flag
+            flag += 1
+
+        kk = tuple(map(int, k.split('_')[:2]))
+        if kk not in label_dct:
+            label_dct[kk] = flag
+            flag += 1
+
+    N = 0
+    print('label_dct', len(label_dct))
+    for i in SeqIO.parse(qry, seq_type):
+        seq_fw = str(i.seq)
+
+        for seq in [seq_fw]:
+            
+            seq_bytes = seq.encode()
+            for st, ed, lab in seq2path_jit_(seq_bytes, kmer, label_dct, bits=bits, lastc=lastc, offbit=offbit):
+                print('%s\t%d\t%d\t%s\t%d'%(i.id, st, ed, '+', lab))
 
         N += len(seq_fw)
         if N > Ns:
@@ -1268,14 +1389,17 @@ def entry_point(argv):
         # convert sequence to path and build the graph
         dct = seq2graph(qry, kmer=kmer, bits=5, Ns=Ns, saved=dbs, hashfunc=oakht)
     else:
-        # build the rdbg, convert sequence to path, and build the graph
-        #dct = seq2dbg(qry, kmer, 5, Ns, rec=bkt)
+        # build the dbg
         kmer_dict = seq2rdbg(qry, kmer, 5, Ns, rec=bkt)
-        #for i in kmer_dict:
-        #    print('kmer dict size', qry, len(kmer_dict), kmer, n2k_(i, kmer, 5))
-        #    if bkt:
-        #        print('bkt is', bkt)
-        dct = seq2graph(qry, kmer=kmer, bits=5, Ns=Ns, kmer_dict=kmer_dict, hashfunc=oakht)
+        #kmer_dict = seq2rdbg(qry, kmer, 5, Ns, rec=bkt)
+        
+        # convert dbg to reduced dbg
+        rdbg_dict = dbg2rdbg(kmer_dict)
+        del kmer_dict
+        gc.collect()
+
+        # convert sequence to path
+        dct = seq2graph(qry, kmer=kmer, bits=5, Ns=Ns, rdbg_dict=rdbg_dict, hashfunc=oakht)
 
     return 0
     #return dct
