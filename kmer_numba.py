@@ -132,7 +132,7 @@ def seqio_jit_(seq_bytes):
         line = seq_bytes[st: ed]
         if line[0] == 62:
             if qid[0] == 62:
-                yield qid, seq
+                yield qid, seq[: end]
 
             qid = line[:-1]
             start = end = 0
@@ -145,7 +145,7 @@ def seqio_jit_(seq_bytes):
             start = end
 
     if qid[0] == 62:
-        yield qid, seq
+        yield qid, seq[: end]
 
 # test
 @nb.njit
@@ -154,7 +154,7 @@ def parse_test(seq_types):
     for qid, seq in seqio_jit_(seq_types):
 
         if flag % 10**6 == 0:
-            print('iter', flag, chk, qid)
+            print('iter', flag, 'current seq', len(seq), 'total seq', chk/1e9)
 
         chk += len(seq)
         flag += 1
