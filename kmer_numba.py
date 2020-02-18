@@ -914,7 +914,7 @@ def seq2rdbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoi
         seq_fw = str(i.seq)
         seq_rv = str(i.reverse_complement().seq)
 
-        print('before adding node', i.id, len(seq_fw), 'clf size', kmer_dict.size, 'seq len', N)
+        #print('before adding node', i.id, len(seq_fw), 'clf size', kmer_dict.size, 'seq len', N)
 
         for seq in [seq_fw, seq_rv]:
             n = len(seq)
@@ -923,7 +923,7 @@ def seq2rdbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoi
             N += n
             flag += n
 
-        print('after adding nodes', i.id, 'clf size', kmer_dict.size, 'seq len', N)
+        #print('after adding nodes', i.id, 'clf size', kmer_dict.size, 'seq len', N)
 
         # save the breakpoint
         if flag > chunk:
