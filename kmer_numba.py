@@ -102,6 +102,72 @@ def memmap(fn, mode='w+', shape=None, dtype='int8'):
     #return np.frombuffer(buf, dtype=dtype).reshape(shape), f
     return np.frombuffer(buf, dtype=dtype), f
 
+
+# convert sequences to bit array
+def seq2byte(fn):
+    return np.memmap(fn, mode='r', dtype='uint8')
+
+# readline
+@nb.njit
+def readline(seq_bytes):
+    start = end = 0
+    for end in range(len(seq_bytes)):
+        if seq_bytes[end] == 10:
+            yield start, end + 1
+            start = end + 1
+    if end > start > 0:
+        yield start, end + 1
+
+# sequence parse
+@nb.njit
+def seqio_jit_(seq_bytes):
+    qid = np.empty(1, dtype=nb.uint8)
+    qid[0] = 0
+    seq = np.empty(2**27, dtype=nb.uint8)
+    empty = np.empty(2**27, dtype=nb.uint8)
+
+    # pointer for sequence
+    start = end = 0
+    for st, ed in readline(seq_bytes):
+        line = seq_bytes[st: ed]
+        if line[0] == 62:
+            if qid[0] == 62:
+                yield qid, seq
+
+            qid = line[:-1]
+            start = end = 0
+        else:
+            end += (len(line) - 1)
+            if end > len(seq):
+                seq = np.append(seq, empty)
+                
+            seq[start: end] = line[:-1]
+            start = end
+
+    if qid[0] == 62:
+        yield qid, seq
+
+# test
+@nb.njit
+def parse_test(seq_types):
+    chk = flag = 0
+    for qid, seq in seqio_jit_(seq_types):
+
+        if flag % 10**6 == 0:
+            print('iter', flag, chk, qid)
+
+        chk += len(seq)
+        flag += 1
+
+    return 0
+
+
+
+
+
+
+
+
 # jit version
 class oakht:
     def __init__(self, capacity=1024, load_factor = .75, ksize=1, ktype=nb.int64, vtype=nb.int64):
