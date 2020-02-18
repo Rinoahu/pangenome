@@ -105,7 +105,8 @@ def memmap(fn, mode='w+', shape=None, dtype='int8'):
 
 # convert sequences to bit array
 def seq2byte(fn):
-    return np.memmap(fn, mode='r', dtype='uint8')
+    seq_bytes = np.asarray(np.memmap(fn, mode='r+', dtype='uint8'))
+    return seq_bytes
 
 # readline
 @nb.njit
@@ -1364,7 +1365,7 @@ def entry_point(argv):
         try:
             N = int(eval(sys.argv[1]))
         except:
-            N = 10**7
+            N = 10 ** 4
 
         mkey = 5
         print('test', N)
@@ -1458,5 +1459,11 @@ def target(*args):
     return entry_point, None
 
 if __name__ == "__main__":
+
+    fn = sys.argv[1]
+    print('file name is', fn)
+    seq_byte = seq2byte(fn)
+    parse_test(seq_byte)
+    print('finish sequences parse testing')
 
     entry_point(sys.argv)
