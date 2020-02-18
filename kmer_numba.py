@@ -1335,6 +1335,16 @@ def manual_print():
 
 def entry_point(argv):
 
+    # test performance of sequence parse
+    try:
+        fn = sys.argv[1]
+        print('file name is', fn)
+        seq_byte = seq2byte(fn)
+        parse_test(seq_byte)
+        print('finish sequences parse testing')
+    except:
+        pass
+
     args = {'-i': '', '-k': '50', '-n': '1000000', '-r': '', '-d': ''}
     N = len(argv)
 
@@ -1460,10 +1470,4 @@ def target(*args):
 
 if __name__ == "__main__":
 
-    fn = sys.argv[1]
-    print('file name is', fn)
-    seq_byte = seq2byte(fn)
-    parse_test(seq_byte)
-    print('finish sequences parse testing')
-
-    entry_point(sys.argv)
+   entry_point(sys.argv)
