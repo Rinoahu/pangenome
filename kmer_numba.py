@@ -913,7 +913,7 @@ def init_dict(hashfunc=oakht, capacity=2**20, ksize=1, ktype=nb.uint64, vtype=nb
 
 # build the dBG
 #def seq2rdbg0(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoint', saved='dBG_disk', hashfunc=oakht, jit=True, spec=spec):
-def seq2rdbg_slow(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoint', saved='dBG_disk', hashfunc=oakht, jit=True):
+def seq2rdbg_slow(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**63, dump='breakpoint', saved='dBG_disk', hashfunc=oakht, jit=True):
 
     kmer = min(max(1, kmer), 27)
     size = int(pow(bits, kmer)+1)
@@ -1621,7 +1621,7 @@ def entry_point(argv):
         print('# build the dBG')
         kmer_dict = seq2rdbg(qry, kmer, 5, Ns, rec=bkt)
         #kmer_dict = seq2rdbg_slow(qry, kmer, 5, Ns, rec=bkt)
-        #raise SystemExit()
+        raise SystemExit()
         
         # convert dbg to reduced dbg
         print('# build the reduced dBG')
