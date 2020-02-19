@@ -209,6 +209,18 @@ def dump(clf, fn='./tmp'):
 
 # load the dict from disk
 def load_on_disk(fn='./tmp', mmap='r+'):
+
+    dtypes = {
+            np.empty(1, 'uint64').dtype: nb.uint64,
+            np.empty(1, 'uint32').dtype: nb.uint32,
+            np.empty(1, 'uint16').dtype: nb.uint16,
+            np.empty(1, 'uint8').dtype: nb.uint8,
+            np.empty(1, 'int64').dtype: nb.int64,
+            np.empty(1, 'int32').dtype: nb.int32,
+            np.empty(1, 'int16').dtype: nb.int16,
+            np.empty(1, 'int8').dtype: nb.int8
+            }
+
     loaded = np.load(fn)
 
     parameters = loaded['parameters']
@@ -218,8 +230,11 @@ def load_on_disk(fn='./tmp', mmap='r+'):
     values = loaded['values']
     counts = loaded['counts']
 
-    #clf = init_dict(hashfunc=oakht, capacity=1, ksize=ksize, ktype=keys.dtype, vtype=values.dtype, jit=True)
-    clf = init_dict(hashfunc=oakht, capacity=1, ksize=ksize)
+    ktype = dtypes[keys.dtype]
+    vtype = dtypes[values.dtype]
+
+    clf = init_dict(hashfunc=oakht, capacity=1, ksize=ksize, ktype=ktype, vtype=vtype, jit=True)
+    #clf = init_dict(hashfunc=oakht, capacity=1, ksize=ksize)
     clf.capacity = capacity
     clf.load = load_factor
     clf.size = size
@@ -1663,7 +1678,12 @@ def entry_point(argv):
         print('# save dBG to disk')
         dump(kmer_dict, qry+'_db')
         #raise SystemExit()
-        
+
+        print('# load dBG from disk')
+        del kmer_dict
+        kmer_dict = load_on_disk(qry+'_db.npz')
+ 
+
         # convert dbg to reduced dbg
         print('# build the reduced dBG')
         rdbg_dict = dbg2rdbg(kmer_dict)
