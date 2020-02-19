@@ -959,11 +959,12 @@ def seq2rdbg0(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpo
 @nb.njit
 def seq2dbg_jit_(seq_bytes, kmer_dict, kmer, bits=5, offbit=offbit, lastc=lastc, alpha=alpha, N=0, Ns=2**63):
     for qid, seq_fw in seqio_jit_(seq_bytes):
-        res = build_dbg_jit_(seq_bytes, kmer_dict, kmer=kmer, bit=bits, offbit=offbit, lastc=lastc, alpha=alpha)
 
+        # build dbg from fwd
+        res = build_dbg_jit_(seq_fw, kmer_dict, kmer=kmer, bit=bits, offbit=offbit, lastc=lastc, alpha=alpha)
+        # build dbg from rev
         seq_rv = reverse_jit_(seq_fw)
         res = build_dbg_jit_(seq_rv, kmer_dict, kmer=kmer, bit=bits, offbit=offbit, lastc=lastc, alpha=alpha)
-
         N += 2 * len(seq_fw)
 
         if N > Ns:
@@ -976,16 +977,16 @@ def seq2rdbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoi
     kmer = min(max(1, kmer), 27)
     size = int(pow(bits, kmer)+1)
     breakpoint = 0
-    if os.path.isfile(rec+'_seqs.txt'):
-        f = open(rec + '_seqs.txt', 'r')
-        breakpoint = int(f.next())
-        f.close()
-        kmer_dict = hashfunc(2**20, load_factor=.75)
-        kmer_dict.loading(rec)
+    #if os.path.isfile(rec+'_seqs.txt'):
+    #    f = open(rec + '_seqs.txt', 'r')
+    #    breakpoint = int(f.next())
+    #    f.close()
+    #    kmer_dict = hashfunc(2**20, load_factor=.75)
+    #    kmer_dict.loading(rec)
+    #else:
+    #    kmer_dict = init_dict(hashfunc=oakht, capacity=2**20, ksize=1, ktype=nb.uint64, vtype=nb.uint16, jit=jit)
 
-    else:
-        kmer_dict = init_dict(hashfunc=oakht, capacity=2**20, ksize=1, ktype=nb.uint64, vtype=nb.uint16, jit=jit)
-
+    kmer_dict = init_dict(hashfunc=oakht, capacity=2**20, ksize=1, ktype=nb.uint64, vtype=nb.uint16, jit=jit)
     seq_type = seq_chk(qry)
 
     seq_bytes = seq2bytes(qry)
@@ -1283,12 +1284,104 @@ def seq2graph0(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfun
 
     return label_dct
 
+# put sequences in the reduced dbg
+def seq2graph1(qry, kmer=13, bits=5, Ns=1e6, rdbg_dict=None, saved=None, hashfunc=oakht, jit=True):
+
+    kmer = min(max(1, kmer), 27)
+    seq_type = seq_chk(qry)
+
+    rdbg_edge = Dict()
+    zero = nb.uint64(0)
+    rdbg_edge[(zero, zero, zero, zero)] = 0
+
+    N = 0
+    for i in SeqIO.parse(qry, seq_type):
+        seq_fw = str(i.seq)
+        for seq in [seq_fw]:
+            seq_bytes = seq.encode()
+            res = rdbg_edge_weight(rdbg_edge, rdbg_dict, seq_bytes, kmer, bits)
+            n = len(seq)
+    
+        N += n
+        if N > Ns:
+            break
+
+    #seq_bytes = seq2bytes(qry)
+    #N = rdbg_edge_weight_jit_(rdbg_edge, rdbg_dict, seq_bytes, kmer, bits, Ns=Ns)
+
+    #print('rdbg size 1665', len(rdbg_edge))
+    _oname = qry + '_rdbg_weight.xyz'
+    #_oname = './' +  _oname.split(os.sep)[-1]
+
+    _o = open(_oname, 'w')
+    for key in rdbg_edge:
+        k12 = tuple(nb.uint64(elem) for elem in key)
+        n0, hd0, n1, hd1 = k12
+        val = rdbg_edge[k12]
+        xyz = '%d_%d\t%d_%d\t%d\n'%(n0, hd0, n1, hd1, val)
+        _o.write(xyz)
+
+    _o.close()
+    
+    # call the mcl for clustering
+    os.system('mcl %s --abc -I 1.5 -te 8 -o %s.mcl > log.mcl'%(_oname, _oname))
+
+    del rdbg_edge
+    del rdbg_dict
+    gc.collect()
+    
+    label_dct = Dict()
+    flag = 0
+    f = open(_oname+'.mcl', 'r')
+    for i in f:
+        j = i[:-1].split('\t')
+        for k in j:
+            ky = tuple(map(int, k.split('_')[:2]))
+            label_dct[ky] = flag
+
+        flag += 1
+
+    f.close()
+
+    # add the rest kmer
+    f = open(_oname, 'r')
+    for i in f:
+        j, k = i[:-1].split('\t')[:2]
+
+        kj = tuple(map(int, j.split('_')[:2]))
+        if kj not in label_dct:
+            label_dct[kj] = flag
+            flag += 1
+
+        kk = tuple(map(int, k.split('_')[:2]))
+        if kk not in label_dct:
+            label_dct[kk] = flag
+            flag += 1
+
+    print('label_dct', len(label_dct))
+    for i in SeqIO.parse(qry, seq_type):
+        seq_fw = str(i.seq)
+        for seq in [seq_fw]:
+            seq_bytes = seq.encode()
+            for st, ed, lab in seq2path_jit_(seq_bytes, kmer, label_dct, bits=bits, lastc=lastc, offbit=offbit):
+                print('%s\t%d\t%d\t%s\t%d'%(i.id, st, ed, '+', lab))
+    
+        N += len(seq_fw)
+        if N > Ns:
+            break
+    #for qid, st, ed, std, lab in seqs2path_jit_(seq_bytes, kmer, label_dct, bits=bits, lastc=lastc, offbit=offbit, Ns=2**63):
+    #    qid_byte = bytes(qid).decode()[1:]
+    #    strand = std == 1 and '+' or '-'
+    #    print('%s\t%d\t%d\t%s\t%d'%(qid_byte, st, ed, strand, lab))
+
+    return label_dct
+
 # get the weight of the reduced dbg
 @nb.njit
 def rdbg_edge_weight_jit_(rdbg_edge, rdbg_dict, seq_bytes, kmer, bits, N=0, Ns=2**63):
-    for qid, seq_bytes in seqio_jit_(seq_bytes):
-        res = rdbg_edge_weight(rdbg_edge, rdbg_dict, seq_bytes, kmer, bits)
-        N += len(seq_bytes)
+    for qid, seq_fw in seqio_jit_(seq_bytes):
+        res = rdbg_edge_weight(rdbg_edge, rdbg_dict, seq_fw, kmer, bits)
+        N += len(seq_fw)
         if N > Ns:
             break
 
@@ -1298,16 +1391,16 @@ def rdbg_edge_weight_jit_(rdbg_edge, rdbg_dict, seq_bytes, kmer, bits, N=0, Ns=2
 @nb.njit
 def seqs2path_jit_(seq_bytes, kmer, label_dct, bits=5, lastc=lastc, offbit=offbit, N=0, Ns=2**63):
 
-    for qid, seq_bytes in seqio_jit_(seq_bytes):
-        for st, ed, lab in seq2path_jit_(seq_bytes, kmer, label_dct, bits=bits, lastc=lastc, offbit=offbit):
+    for qid, seq_fw in seqio_jit_(seq_bytes):
+        for st, ed, lab in seq2path_jit_(seq_fw, kmer, label_dct, bits=bits, lastc=lastc, offbit=offbit):
             #print('%s\t%d\t%d\t%s\t%d'%(i.id, st, ed, '+', lab))
             yield qid, st, ed, 1, lab
 
-        N += len(seq_bytes)
+        N += len(seq_fw)
         if N > Ns:
             break
 
-# put sequences in the reduced dbg
+
 def seq2graph(qry, kmer=13, bits=5, Ns=1e6, rdbg_dict=None, saved=None, hashfunc=oakht, jit=True):
 
     kmer = min(max(1, kmer), 27)
@@ -1316,18 +1409,6 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, rdbg_dict=None, saved=None, hashfunc
     rdbg_edge = Dict()
     zero = nb.uint64(0)
     rdbg_edge[(zero, zero, zero, zero)] = 0
-
-    #N = 0
-    #for i in SeqIO.parse(qry, seq_type):
-    #    seq_fw = str(i.seq)
-    #    for seq in [seq_fw]:
-    #        seq_bytes = seq.encode()
-    #        res = rdbg_edge_weight(rdbg_edge, rdbg_dict, seq_bytes, kmer, bits)
-    #        n = len(seq)
-    #
-    #    N += n
-    #    if N > Ns:
-    #        break
 
     seq_bytes = seq2bytes(qry)
     N = rdbg_edge_weight_jit_(rdbg_edge, rdbg_dict, seq_bytes, kmer, bits, Ns=Ns)
@@ -1382,22 +1463,10 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, rdbg_dict=None, saved=None, hashfunc
             flag += 1
 
     print('label_dct', len(label_dct))
-    #for i in SeqIO.parse(qry, seq_type):
-    #    seq_fw = str(i.seq)
-    #    for seq in [seq_fw]:
-    #        
-    #        seq_bytes = seq.encode()
-    #        for st, ed, lab in seq2path_jit_(seq_bytes, kmer, label_dct, bits=bits, lastc=lastc, offbit=offbit):
-    #            print('%s\t%d\t%d\t%s\t%d'%(i.id, st, ed, '+', lab))
-    #
-    #    N += len(seq_fw)
-    #    if N > Ns:
-    #        break
     for qid, st, ed, std, lab in seqs2path_jit_(seq_bytes, kmer, label_dct, bits=bits, lastc=lastc, offbit=offbit, Ns=2**63):
         qid_byte = bytes(qid).decode()[1:]
         strand = std == 1 and '+' or '-'
         print('%s\t%d\t%d\t%s\t%d'%(qid_byte, st, ed, strand, lab))
-
 
     return label_dct
 
@@ -1419,14 +1488,14 @@ def manual_print():
 def entry_point(argv):
 
     # test performance of sequence parse
-    try:
-        fn = sys.argv[1]
-        print('file name is', fn)
-        seq_byte = seq2byte(fn)
-        parse_test(seq_byte)
-        print('finish sequences parse testing')
-    except:
-        pass
+    #try:
+    #    fn = sys.argv[1]
+    #    print('file name is', fn)
+    #    seq_byte = seq2byte(fn)
+    #    parse_test(seq_byte)
+    #    print('finish sequences parse testing')
+    #except:
+    #    pass
 
     args = {'-i': '', '-k': '50', '-n': '1000000', '-r': '', '-d': ''}
     N = len(argv)
