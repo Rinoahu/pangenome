@@ -898,7 +898,7 @@ def init_dict(hashfunc=oakht, capacity=2**20, ksize=1, ktype=nb.uint64, vtype=nb
 
 # build the dBG
 #def seq2rdbg0(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoint', saved='dBG_disk', hashfunc=oakht, jit=True, spec=spec):
-def seq2rdbg0(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoint', saved='dBG_disk', hashfunc=oakht, jit=True):
+def seq2rdbg_slow(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoint', saved='dBG_disk', hashfunc=oakht, jit=True):
 
     kmer = min(max(1, kmer), 27)
     size = int(pow(bits, kmer)+1)
@@ -1029,12 +1029,13 @@ def build_rdbg_jit_(rdbg_dict, kmer_dict):
             rdbg_dict.push(k, hn)
 
     #return rdbg_dict
+    return 0
 
 
 # build rdbg from dbg
 def dbg2rdbg(kmer_dict):
     rdbg_dict = init_dict(hashfunc=oakht, capacity=2**20, ksize=kmer_dict.ksize, ktype=nb.uint64, vtype=nb.uint16, jit=True)
-    build_rdbg_jit_(rdbg_dict, kmer_dict)
+    res = build_rdbg_jit_(rdbg_dict, kmer_dict)
     return rdbg_dict
 
 
@@ -1285,7 +1286,7 @@ def seq2graph0(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfun
     return label_dct
 
 # put sequences in the reduced dbg
-def seq2graph1(qry, kmer=13, bits=5, Ns=1e6, rdbg_dict=None, saved=None, hashfunc=oakht, jit=True):
+def seq2graph_slow(qry, kmer=13, bits=5, Ns=1e6, rdbg_dict=None, saved=None, hashfunc=oakht, jit=True):
 
     kmer = min(max(1, kmer), 27)
     seq_type = seq_chk(qry)
@@ -1463,7 +1464,7 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, rdbg_dict=None, saved=None, hashfunc
             flag += 1
 
     print('label_dct', len(label_dct))
-    for qid, st, ed, std, lab in seqs2path_jit_(seq_bytes, kmer, label_dct, bits=bits, lastc=lastc, offbit=offbit, Ns=2**63):
+    for qid, st, ed, std, lab in seqs2path_jit_(seq_bytes, kmer, label_dct, bits=bits, lastc=lastc, offbit=offbit, Ns=Ns):
         qid_byte = bytes(qid).decode()[1:]
         strand = std == 1 and '+' or '-'
         print('%s\t%d\t%d\t%s\t%d'%(qid_byte, st, ed, strand, lab))
@@ -1601,17 +1602,22 @@ def entry_point(argv):
         dct = seq2graph(qry, kmer=kmer, bits=5, Ns=Ns, saved=dbs, hashfunc=oakht)
     else:
         # build the dbg
-        kmer_dict = seq2rdbg(qry, kmer, 5, Ns, rec=bkt)
+        print('# build the dBG')
         #kmer_dict = seq2rdbg(qry, kmer, 5, Ns, rec=bkt)
+        kmer_dict = seq2rdbg_slow(qry, kmer, 5, Ns, rec=bkt)
+        #raise SystemExit()
         
         # convert dbg to reduced dbg
+        print('# build the reduced dBG')
         rdbg_dict = dbg2rdbg(kmer_dict)
         kmer_dict.destroy()
         del kmer_dict
         gc.collect()
 
         # convert sequence to path
-        dct = seq2graph(qry, kmer=kmer, bits=5, Ns=Ns, rdbg_dict=rdbg_dict, hashfunc=oakht)
+        print('# find fr')
+        #dct = seq2graph(qry, kmer=kmer, bits=5, Ns=Ns, rdbg_dict=rdbg_dict, hashfunc=oakht)
+        dct = seq2graph_slow(qry, kmer=kmer, bits=5, Ns=Ns, rdbg_dict=rdbg_dict, hashfunc=oakht)
 
     return 0
     #return dct
