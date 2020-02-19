@@ -110,7 +110,7 @@ def seq2bytes(fn):
 
 # readline
 @nb.njit
-def readline(seq_bytes):
+def readline_jit_(seq_bytes):
     start = end = 0
     for end in range(len(seq_bytes)):
         if seq_bytes[end] == 10:
@@ -121,33 +121,48 @@ def readline(seq_bytes):
 
 # sequence parse
 @nb.njit
-def seqio_jit_(seq_bytes):
-    qid = np.empty(1, dtype=nb.uint8)
-    qid[0] = 0
-    seq = np.empty(2**27, dtype=nb.uint8)
-    empty = np.empty(2**27, dtype=nb.uint8)
+def seqio_jit_(seq_bytes, isfasta=True):
+    if isfasta:
 
-    # pointer for sequence
-    start = end = 0
-    for st, ed in readline(seq_bytes):
-        line = seq_bytes[st: ed]
-        if line[0] == 62:
-            if qid[0] == 62:
-                yield qid, seq[: end]
+        qid = np.empty(1, dtype=nb.uint8)
+        qid[0] = 0
+        seq = np.empty(2**27, dtype=nb.uint8)
+        empty = np.empty(2**27, dtype=nb.uint8)
 
-            qid = line[:-1]
-            start = end = 0
-        else:
-            end += (len(line) - 1)
-            if end > len(seq):
-                seq = np.append(seq, empty)
+        # pointer for sequence
+        start = end = 0
+        for st, ed in readline_jit_(seq_bytes):
+            line = seq_bytes[st: ed]
+            if line[0] == 62:
+                if qid[0] == 62:
+                    yield qid, seq[: end]
+
+                qid = line[:-1]
+                start = end = 0
+            else:
+                end += (len(line) - 1)
+                if end > len(seq):
+                    seq = np.append(seq, empty)
                 
-            seq[start: end] = line[:-1]
-            start = end
+                seq[start: end] = line[:-1]
+                start = end
 
-    if qid[0] == 62:
-        yield qid, seq[: end]
+        if qid[0] == 62:
+            yield qid, seq[: end]
 
+    else:
+        flag = 0
+        for st, ed in readline_jit_(seq_bytes):
+            line = seq_bytes[st: ed]
+            if line[0] == 64:
+                head = line[:-1]
+                flag = 1
+            elif flag == 1:
+                seq = line[:-1]
+                yield head, seq
+                flag = 0
+            else:
+                continue
 
 # reverse the sequence
 tab_rev_bytes = np.empty(256, dtype='uint8')
@@ -957,8 +972,8 @@ def seq2rdbg_slow(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='bre
 
 # parse sequences and save kmers in a dbg
 @nb.njit
-def seq2dbg_jit_(seq_bytes, kmer_dict, kmer, bits=5, offbit=offbit, lastc=lastc, alpha=alpha, N=0, Ns=2**63):
-    for qid, seq_fw in seqio_jit_(seq_bytes):
+def seq2dbg_jit_(seq_bytes, kmer_dict, isfasta, kmer, bits=5, offbit=offbit, lastc=lastc, alpha=alpha, N=0, Ns=2**63):
+    for qid, seq_fw in seqio_jit_(seq_bytes, isfasta=isfasta):
 
         # build dbg from fwd
         res = build_dbg_jit_(seq_fw, kmer_dict, kmer=kmer, bit=bits, offbit=offbit, lastc=lastc, alpha=alpha)
@@ -987,11 +1002,11 @@ def seq2rdbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoi
     #    kmer_dict = init_dict(hashfunc=oakht, capacity=2**20, ksize=1, ktype=nb.uint64, vtype=nb.uint16, jit=jit)
 
     kmer_dict = init_dict(hashfunc=oakht, capacity=2**20, ksize=1, ktype=nb.uint64, vtype=nb.uint16, jit=jit)
-    seq_type = seq_chk(qry)
+    #seq_type = seq_chk(qry) 
+    isfasta = seq_chk(qry) == 'fasta' and True or False
 
     seq_bytes = seq2bytes(qry)
-
-    N = seq2dbg_jit_(seq_bytes, kmer_dict, kmer=kmer, bits=bits, offbit=offbit, lastc=lastc, alpha=alpha, Ns=Ns)
+    N = seq2dbg_jit_(seq_bytes, kmer_dict, isfasta=isfasta, kmer=kmer, bits=bits, offbit=offbit, lastc=lastc, alpha=alpha, Ns=Ns)
 
     return kmer_dict
 
@@ -1379,8 +1394,8 @@ def seq2graph_slow(qry, kmer=13, bits=5, Ns=1e6, rdbg_dict=None, saved=None, has
 
 # get the weight of the reduced dbg
 @nb.njit
-def rdbg_edge_weight_jit_(rdbg_edge, rdbg_dict, seq_bytes, kmer, bits, N=0, Ns=2**63):
-    for qid, seq_fw in seqio_jit_(seq_bytes):
+def rdbg_edge_weight_jit_(rdbg_edge, rdbg_dict, seq_bytes, isfasta, kmer, bits, N=0, Ns=2**63):
+    for qid, seq_fw in seqio_jit_(seq_bytes, isfasta=isfasta):
         res = rdbg_edge_weight(rdbg_edge, rdbg_dict, seq_fw, kmer, bits)
         N += len(seq_fw)
         if N > Ns:
@@ -1390,9 +1405,9 @@ def rdbg_edge_weight_jit_(rdbg_edge, rdbg_dict, seq_bytes, kmer, bits, N=0, Ns=2
 
 # convert sequences into path
 @nb.njit
-def seqs2path_jit_(seq_bytes, kmer, label_dct, bits=5, lastc=lastc, offbit=offbit, N=0, Ns=2**63):
+def seqs2path_jit_(seq_bytes, isfasta, kmer, label_dct, bits=5, lastc=lastc, offbit=offbit, N=0, Ns=2**63):
 
-    for qid, seq_fw in seqio_jit_(seq_bytes):
+    for qid, seq_fw in seqio_jit_(seq_bytes, isfasta):
         for st, ed, lab in seq2path_jit_(seq_fw, kmer, label_dct, bits=bits, lastc=lastc, offbit=offbit):
             #print('%s\t%d\t%d\t%s\t%d'%(i.id, st, ed, '+', lab))
             yield qid, st, ed, 1, lab
@@ -1405,14 +1420,15 @@ def seqs2path_jit_(seq_bytes, kmer, label_dct, bits=5, lastc=lastc, offbit=offbi
 def seq2graph(qry, kmer=13, bits=5, Ns=1e6, rdbg_dict=None, saved=None, hashfunc=oakht, jit=True):
 
     kmer = min(max(1, kmer), 27)
-    seq_type = seq_chk(qry)
+    #seq_type = seq_chk(qry)
+    isfasta = seq_chk(qry) == 'fasta' and True or False
 
     rdbg_edge = Dict()
     zero = nb.uint64(0)
     rdbg_edge[(zero, zero, zero, zero)] = 0
 
     seq_bytes = seq2bytes(qry)
-    N = rdbg_edge_weight_jit_(rdbg_edge, rdbg_dict, seq_bytes, kmer, bits, Ns=Ns)
+    N = rdbg_edge_weight_jit_(rdbg_edge, rdbg_dict, seq_bytes, isfasta, kmer, bits, Ns=Ns)
 
     #print('rdbg size 1665', len(rdbg_edge))
     _oname = qry + '_rdbg_weight.xyz'
@@ -1464,7 +1480,7 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, rdbg_dict=None, saved=None, hashfunc
             flag += 1
 
     print('label_dct', len(label_dct))
-    for qid, st, ed, std, lab in seqs2path_jit_(seq_bytes, kmer, label_dct, bits=bits, lastc=lastc, offbit=offbit, Ns=Ns):
+    for qid, st, ed, std, lab in seqs2path_jit_(seq_bytes, isfasta, kmer, label_dct, bits=bits, lastc=lastc, offbit=offbit, Ns=Ns):
         qid_byte = bytes(qid).decode()[1:]
         strand = std == 1 and '+' or '-'
         print('%s\t%d\t%d\t%s\t%d'%(qid_byte, st, ed, strand, lab))
@@ -1603,8 +1619,8 @@ def entry_point(argv):
     else:
         # build the dbg
         print('# build the dBG')
-        #kmer_dict = seq2rdbg(qry, kmer, 5, Ns, rec=bkt)
-        kmer_dict = seq2rdbg_slow(qry, kmer, 5, Ns, rec=bkt)
+        kmer_dict = seq2rdbg(qry, kmer, 5, Ns, rec=bkt)
+        #kmer_dict = seq2rdbg_slow(qry, kmer, 5, Ns, rec=bkt)
         #raise SystemExit()
         
         # convert dbg to reduced dbg
@@ -1616,8 +1632,8 @@ def entry_point(argv):
 
         # convert sequence to path
         print('# find fr')
-        #dct = seq2graph(qry, kmer=kmer, bits=5, Ns=Ns, rdbg_dict=rdbg_dict, hashfunc=oakht)
-        dct = seq2graph_slow(qry, kmer=kmer, bits=5, Ns=Ns, rdbg_dict=rdbg_dict, hashfunc=oakht)
+        dct = seq2graph(qry, kmer=kmer, bits=5, Ns=Ns, rdbg_dict=rdbg_dict, hashfunc=oakht)
+        #dct = seq2graph_slow(qry, kmer=kmer, bits=5, Ns=Ns, rdbg_dict=rdbg_dict, hashfunc=oakht)
 
     return 0
     #return dct
