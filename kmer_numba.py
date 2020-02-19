@@ -195,6 +195,42 @@ def parse_test(seq_types):
 
     return 0
 
+# save the dict to disk
+def dump(clf, fn='./tmp'):
+    fn = fn.endswith('.npz') and fn[:-4] or fn
+
+    capacity = clf.capacity
+    load_factor = clf.load
+    size = clf.size
+    ksize = clf.ksize
+    parameters = np.asarray([capacity, load_factor, size, ksize], dtype='uint64')
+    np.savez_compressed(fn, parameters=parameters, keys=clf.keys, values=clf.values, counts=clf.counts)
+    return 0
+
+# load the dict from disk
+def load_on_disk(fn='./tmp', mmap='r+'):
+    loaded = np.load(fn)
+
+    parameters = loaded['parameters']
+    capacity, load_factor, size, ksize = parameters
+
+    keys = loaded['keys']
+    values = loaded['values']
+    counts = loaded['counts']
+
+    #clf = init_dict(hashfunc=oakht, capacity=1, ksize=ksize, ktype=keys.dtype, vtype=values.dtype, jit=True)
+    clf = init_dict(hashfunc=oakht, capacity=1, ksize=ksize)
+    clf.capacity = capacity
+    clf.load = load_factor
+    clf.size = size
+
+    clf.keys = keys
+    clf.values = values
+    clf.counts = counts
+
+    return clf
+
+
 
 
 # jit version
@@ -896,10 +932,12 @@ def init_dict(hashfunc=oakht, capacity=2**20, ksize=1, ktype=nb.uint64, vtype=nb
         spec['size'] = nb.int64
         spec['ksize'] = nb.int64
 
-        spec['ktype'] = ktype
-        spec['keys'] = spec['ktype'][:]
-        spec['vtype'] = vtype
-        spec['values'] = spec['vtype'][:]
+        #spec['ktype'] = ktype
+        #spec['keys'] = spec['ktype'][:]
+        spec['keys'] = ktype[:]
+        #spec['vtype'] = vtype
+        #spec['values'] = spec['vtype'][:]
+        spec['values'] = vtype[:]
 
         spec['counts'] = nb.uint8[:]
         clf = nb.jitclass(spec)(hashfunc)
@@ -1621,7 +1659,10 @@ def entry_point(argv):
         print('# build the dBG')
         kmer_dict = seq2rdbg(qry, kmer, 5, Ns, rec=bkt)
         #kmer_dict = seq2rdbg_slow(qry, kmer, 5, Ns, rec=bkt)
-        raise SystemExit()
+
+        print('# save dBG to disk')
+        dump(kmer_dict, qry+'_db')
+        #raise SystemExit()
         
         # convert dbg to reduced dbg
         print('# build the reduced dBG')

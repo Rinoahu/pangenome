@@ -1,7 +1,7 @@
 #!/bin/bash
 
 cd ./test
-rm -f pan_genome.fsa* log.* test.fsa_*
+rm -f pan_genome.fsa* log.* test.fsa_* *.npz
 cd ../
 
 echo $PWD
