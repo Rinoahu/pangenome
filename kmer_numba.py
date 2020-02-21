@@ -1169,7 +1169,7 @@ def seq2ns_jit_(seq, k=12, bit=5, alpha=alpha):
 
 # add kmer to the dbg
 @nb.njit(inline='always')
-def add_kmer(kmer_dict, key, idx, Nu, hd, nc, lastc=lastc, offbit=offbit):
+def add_kmer(kmer_dict, key, empty, idx, Nu, hd, nc, lastc=lastc, offbit=offbit):
     key[0], hd, nt = Nu, hd, nc
     h = lastc[hd] << offbit
     d = lastc[nt]
@@ -1177,16 +1177,19 @@ def add_kmer(kmer_dict, key, idx, Nu, hd, nc, lastc=lastc, offbit=offbit):
         val = kmer_dict.get(key)
         kmer_dict.push(key, val | h | d)
     else:
-        kmer_dict.push(key, np.asarray([h|d], dtype=nb.uint16))
+        empty[0] = h|d
+        #kmer_dict.push(key, np.asarray([h|d], dtype=nb.uint16))
+        kmer_dict.push(key, empty)
 
 
-#@nb.njit
 # build dbg from kmer
 #def kmer2dict(seq, kmer_dict, kmer=12, bit=5, offbit=offbit, lastc=lastc, alpha=alpha):
 def build_dbg(seq, kmer_dict, kmer=12, bit=5, offbit=offbit, lastc=lastc, alpha=alpha):
 
     k = kmer
     key = np.empty(1, dtype=np.uint64)
+    empty = np.empty(1, dtype=np.uint16)
+
     # '#' is 35, '$' is 36
     #output = np.empty(4, dtype=np.uint64)
     n = len(seq)
@@ -1195,8 +1198,7 @@ def build_dbg(seq, kmer_dict, kmer=12, bit=5, offbit=offbit, lastc=lastc, alpha=
         Nu = k2n_jit_(seq[:k])
         hd, nc = 35, seq[k]
         #add_kmer(kmer_dict, key, idx, Nu, 35, seq[k], lastc=lastc, offbit=offbit)
-        add_kmer(kmer_dict, key, idx, Nu, hd, nc, lastc=lastc, offbit=offbit)
-
+        add_kmer(kmer_dict, key, empty, idx, Nu, hd, nc, lastc=lastc, offbit=offbit)
 
         shift = bit ** (k - 1)
         for i in xrange(k, n-1):
@@ -1206,19 +1208,19 @@ def build_dbg(seq, kmer_dict, kmer=12, bit=5, offbit=offbit, lastc=lastc, alpha=
             # find head and next char
             hd, nc = seq[i-k], seq[i+1]
 
-            add_kmer(kmer_dict, key, idx, Nu, hd, nc, lastc=lastc, offbit=offbit)
+            add_kmer(kmer_dict, key, empty, idx, Nu, hd, nc, lastc=lastc, offbit=offbit)
 
         cc = alpha[seq[i+1]]
         Nu = Nu // bit + cc * shift
         hd, nc = seq[i-k], 36
         #add_kmer(kmer_dict, key, idx, Nu, hd, 36, lastc=lastc, offbit=offbit)
-        add_kmer(kmer_dict, key, idx, Nu, hd, nc, lastc=lastc, offbit=offbit)
+        add_kmer(kmer_dict, key, empty, idx, Nu, hd, nc, lastc=lastc, offbit=offbit)
 
     elif n == k:
-        add_kmer(kmer_dict, key, 0, k2n_jit_(seq), 35, 36, lastc=lastc, offbit=offbit)
+        add_kmer(kmer_dict, key, empty, 0, k2n_jit_(seq), 35, 36, lastc=lastc, offbit=offbit)
 
     else:
-        add_kmer(kmer_dict, key, 0, -1, 35, 36, lastc=lastc, offbit=offbit)
+        add_kmer(kmer_dict, key, empty, 0, -1, 35, 36, lastc=lastc, offbit=offbit)
 
     return 0
 
@@ -1958,12 +1960,11 @@ def entry_point(argv):
 
         print('# save dBG to disk')
         dump(kmer_dict, qry+'_db')
-        #raise SystemExit()
+        raise SystemExit()
 
         print('# load dBG from disk')
         del kmer_dict
         kmer_dict = load_on_disk(qry+'_db.npz')
- 
 
         # convert dbg to reduced dbg
         print('# build the reduced dBG')
@@ -1971,6 +1972,7 @@ def entry_point(argv):
         kmer_dict.destroy()
         del kmer_dict
         gc.collect()
+        raise SystemExit()
 
         # convert sequence to path
         print('# find fr')
