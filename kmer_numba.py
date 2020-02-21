@@ -1387,7 +1387,8 @@ def build_rdbg_jit_(rdbg_dict, kmer_dict):
         if pr == sf == 1 and sf != 0b100000:
             continue
         else:
-            rdbg_dict.push(k, hn)
+            #rdbg_dict.push(k, hn)
+            rdbg_dict.push(k, hns)
 
     #return rdbg_dict
     return 0
