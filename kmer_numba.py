@@ -1960,7 +1960,6 @@ def entry_point(argv):
 
         print('# save dBG to disk')
         dump(kmer_dict, qry+'_db')
-        raise SystemExit()
 
         print('# load dBG from disk')
         del kmer_dict
@@ -1972,7 +1971,6 @@ def entry_point(argv):
         kmer_dict.destroy()
         del kmer_dict
         gc.collect()
-        raise SystemExit()
 
         # convert sequence to path
         print('# find fr')
