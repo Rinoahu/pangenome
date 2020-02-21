@@ -1174,10 +1174,10 @@ def add_kmer(kmer_dict, key, idx, Nu, hd, nc, lastc=lastc, offbit=offbit):
     h = lastc[hd] << offbit
     d = lastc[nt]
     if kmer_dict.has_key(key):
-        val = kmer_dict.get(key) 
+        val = kmer_dict.get(key)
         kmer_dict.push(key, val | h | d)
     else:
-        kmer_dict.push(key, h | d)
+        kmer_dict.push(key, np.asarray([h|d], dtype=nb.uint16))
 
 
 #@nb.njit
@@ -1343,7 +1343,7 @@ def seq2rdbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoi
     #else:
     #    kmer_dict = init_dict(hashfunc=oakht, capacity=2**20, ksize=1, ktype=nb.uint64, vtype=nb.uint16, jit=jit)
 
-    kmer_dict = init_dict(hashfunc=oakht, capacity=2**20, ksize=1, ktype=nb.uint64, vtype=nb.uint16, jit=jit)
+    kmer_dict = init_dict(hashfunc=oakht, capacity=2**20, ksize=1, ktype=nb.uint64, vsize=1, vtype=nb.uint16, jit=jit)
     #seq_type = seq_chk(qry) 
     isfasta = seq_chk(qry) == 'fasta' and True or False
 
@@ -1377,7 +1377,11 @@ def kmer_in_rdbg(ht, i):
 @nb.njit
 def build_rdbg_jit_(rdbg_dict, kmer_dict):
     for kv in kmer_dict.iteritems():
-        k, hn = kv
+        #k, hn = kv
+
+        k, hns = kv
+        hn = hns[0]
+
         pr = nbit_jit_(hn >> offbit)
         sf = nbit_jit_(hn & lowbit)
         if pr == sf == 1 and sf != 0b100000:
@@ -1391,7 +1395,7 @@ def build_rdbg_jit_(rdbg_dict, kmer_dict):
 
 # build rdbg from dbg
 def dbg2rdbg(kmer_dict):
-    rdbg_dict = init_dict(hashfunc=oakht, capacity=2**20, ksize=kmer_dict.ksize, ktype=nb.uint64, vtype=nb.uint16, jit=True)
+    rdbg_dict = init_dict(hashfunc=oakht, capacity=2**20, ksize=kmer_dict.ksize, ktype=nb.uint64, vsize=kmer_dict.vsize, vtype=nb.uint16, jit=True)
     res = build_rdbg_jit_(rdbg_dict, kmer_dict)
     return rdbg_dict
 
