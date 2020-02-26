@@ -209,7 +209,7 @@ def parse_test(seq_types):
     return 0
 
 # save the dict to disk
-def dump(clf, fn='./tmp'):
+def dump(clf, fn='./tmp', offset=0):
     #print('213 clf size', clf.size, fn)
     fn = fn.endswith('.npz') and fn[:-4] or fn
 
@@ -217,7 +217,7 @@ def dump(clf, fn='./tmp'):
     load_factor = clf.load
     size = clf.size
     ksize = clf.ksize
-    parameters = np.asarray([capacity, load_factor, size, ksize], dtype='uint64')
+    parameters = np.asarray([capacity, load_factor, size, ksize, offset], dtype='uint64')
     np.savez_compressed(fn, parameters=parameters, keys=clf.keys, values=clf.values, counts=clf.counts)
     return 0
 
@@ -238,7 +238,7 @@ def load_on_disk(fn='./tmp', mmap='r+'):
     loaded = np.load(fn)
 
     parameters = loaded['parameters']
-    capacity, load_factor, size, ksize = parameters
+    capacity, load_factor, size, ksize, offset = parameters
 
     keys = loaded['keys']
     values = loaded['values']
@@ -257,9 +257,7 @@ def load_on_disk(fn='./tmp', mmap='r+'):
     clf.values = values
     clf.counts = counts
 
-    return clf
-
-
+    return offset, clf
 
 
 # jit version
@@ -1368,35 +1366,31 @@ def seq2dbg_jit_(seq_bytes, kmer_dict, isfasta, kmer, bits=5, offbit=offbit, las
     return N, 1, ptr[0]
 
 
-def seq2rdbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, brkpt='breakpoint', saved='dBG_disk', hashfunc=oakht, jit=True):
+def seq2rdbg(qry, kmer=13, bits=5, Ns=1e6, chunk=2**32, brkpt='./breakpoint', saved='dBG_disk', hashfunc=oakht, jit=True):
 
     kmer = min(max(1, kmer), 27)
     size = int(pow(bits, kmer)+1)
-    breakpoint = 0
-    #if os.path.isfile(rec+'_seqs.txt'):
-    #    f = open(rec + '_seqs.txt', 'r')
-    #    breakpoint = int(f.next())
-    #    f.close()
-    #    kmer_dict = hashfunc(2**20, load_factor=.75)
-    #    kmer_dict.loading(rec)
-    #else:
-    #    kmer_dict = init_dict(hashfunc=oakht, capacity=2**20, ksize=1, ktype=nb.uint64, vtype=nb.uint16, jit=jit)
+    #breakpoint = 0
+    if os.path.isfile(brkpt):
+        offset, kmer_dict = load_on_disk(brkpt)
 
-    kmer_dict = init_dict(hashfunc=oakht, capacity=2**20, ksize=1, ktype=nb.uint64, vsize=1, vtype=nb.uint16, jit=jit)
+    else:
+        kmer_dict = init_dict(hashfunc=oakht, capacity=2**20, ksize=1, ktype=nb.uint64, vsize=1, vtype=nb.uint16, jit=jit)
+        offset = 0
     #seq_type = seq_chk(qry) 
     isfasta = seq_chk(qry) == 'fasta' and True or False
 
     seq_bytes = seq2bytes(qry)
 
     #N, done, ptr = seq2dbg_jit_(seq_bytes, kmer_dict, isfasta=isfasta, kmer=kmer, bits=bits, offbit=offbit, lastc=lastc, alpha=alpha, Ns=Ns)
-    offset = 0
+    #offset = 0
     while 1:
-        N, done, ptr = seq2dbg_jit_(seq_bytes, kmer_dict, isfasta=isfasta, kmer=kmer, bits=bits, offbit=offbit, lastc=lastc, alpha=alpha, offset=offset, chunk=5, Ns=Ns)
+        N, done, ptr = seq2dbg_jit_(seq_bytes, kmer_dict, isfasta=isfasta, kmer=kmer, bits=bits, offbit=offbit, lastc=lastc, alpha=alpha, offset=offset, chunk=chunk, Ns=Ns)
         if done == -1:
             offset = ptr
             # save the dbg on disk
-            dump(kmer_dict, qry+'_db_brkpt')
-            print('1395 saving temp on disk', qry, kmer_dict.size, ptr)
+            dump(kmer_dict, qry+'_db_brkpt', offset)
+            print('1395 saving temp on disk', qry, kmer_dict.size, offset)
         else:
             break
 
@@ -2004,16 +1998,18 @@ def entry_point(argv):
     else:
         # build the dbg
         print('# build the dBG')
-        kmer_dict = seq2rdbg(qry, kmer, 5, Ns, rec=bkt)
+        #kmer_dict = seq2rdbg(qry, kmer, 5, Ns, rec=bkt)
+        kmer_dict = seq2rdbg(qry, kmer, 5, Ns, brkpt=bkt, chunk=3)
         #kmer_dict = seq2rdbg_slow(qry, kmer, 5, Ns, rec=bkt)
-        #raise SystemExit()
 
         print('# save dBG to disk')
         dump(kmer_dict, qry+'_db')
 
         print('# load dBG from disk')
         del kmer_dict
-        kmer_dict = load_on_disk(qry+'_db.npz')
+        #kmer_dict = load_on_disk(qry+'_db.npz')
+        offset, kmer_dict = load_on_disk(qry+'_db.npz')
+        #raise SystemExit()
 
         # convert dbg to reduced dbg
         print('# build the reduced dBG')
