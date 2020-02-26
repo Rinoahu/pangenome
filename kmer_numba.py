@@ -110,9 +110,11 @@ def seq2bytes(fn):
 
 # readline
 @nb.njit
-def readline_jit_(seq_bytes):
+#def readline_jit_(seq_bytes):
+def readline_jit_(seq_bytes, offset=0):
     start = end = 0
-    for end in range(len(seq_bytes)):
+    #for end in range(len(seq_bytes)):
+    for end in range(offset, len(seq_bytes)):
         if seq_bytes[end] == 10:
             yield start, end + 1
             start = end + 1
@@ -121,8 +123,13 @@ def readline_jit_(seq_bytes):
 
 # sequence parse
 @nb.njit
-def seqio_jit_(seq_bytes, isfasta=True):
+#def seqio_jit_(seq_bytes, isfasta=True):
+def seqio_jit_(seq_bytes, offset=0, isfasta=True):
+
     if isfasta:
+
+        # the pointer of the sequence
+        ptr = np.empty(1, dtype=nb.uint64)
 
         qid = np.empty(1, dtype=nb.uint8)
         qid[0] = 0
@@ -131,11 +138,14 @@ def seqio_jit_(seq_bytes, isfasta=True):
 
         # pointer for sequence
         start = end = 0
-        for st, ed in readline_jit_(seq_bytes):
+        #for st, ed in readline_jit_(seq_bytes):
+        for st, ed in readline_jit_(seq_bytes, offset=offset):
+            ptr[0] = ed
             line = seq_bytes[st: ed]
             if line[0] == 62:
                 if qid[0] == 62:
-                    yield qid, seq[: end]
+                    #yield qid, seq[: end]
+                    yield qid, seq[: end], ptr
 
                 qid = line[:-1]
                 start = end = 0
@@ -148,18 +158,21 @@ def seqio_jit_(seq_bytes, isfasta=True):
                 start = end
 
         if qid[0] == 62:
-            yield qid, seq[: end]
+            #yield qid, seq[: end]
+            yield qid, seq[: end], ptr
 
     else:
         flag = 0
         for st, ed in readline_jit_(seq_bytes):
+            ptr[0] = ed
             line = seq_bytes[st: ed]
             if line[0] == 64:
                 head = line[:-1]
                 flag = 1
             elif flag == 1:
                 seq = line[:-1]
-                yield head, seq
+                #yield head, seq
+                yield head, seq, ptr
                 flag = 0
             else:
                 continue
@@ -185,7 +198,7 @@ def reverse_jit_(seq_bytes, tab_rev=tab_rev_bytes):
 @nb.njit
 def parse_test(seq_types):
     chk = flag = 0
-    for qid, seq in seqio_jit_(seq_types):
+    for qid, seq, ptr in seqio_jit_(seq_types):
 
         if flag % 10**6 == 0:
             print('iter', flag, 'current seq', len(seq), 'total seq', chk/1e9)
@@ -1317,7 +1330,8 @@ def seq2rdbg_slow(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**63, dump='bre
 # parse sequences and save kmers in a dbg
 @nb.njit
 def seq2dbg_jit_(seq_bytes, kmer_dict, isfasta, kmer, bits=5, offbit=offbit, lastc=lastc, alpha=alpha, N=0, Ns=2**63):
-    for qid, seq_fw in seqio_jit_(seq_bytes, isfasta=isfasta):
+    #for qid, seq_fw in seqio_jit_(seq_bytes, isfasta=isfasta):
+    for qid, seq_fw, ptr in seqio_jit_(seq_bytes, isfasta=isfasta):
 
         # build dbg from fwd
         res = build_dbg_jit_(seq_fw, kmer_dict, kmer=kmer, bit=bits, offbit=offbit, lastc=lastc, alpha=alpha)
@@ -1744,7 +1758,8 @@ def seq2graph_slow(qry, kmer=13, bits=5, Ns=1e6, rdbg_dict=None, saved=None, has
 # get the weight of the reduced dbg
 @nb.njit
 def rdbg_edge_weight_jit_(rdbg_edge, rdbg_dict, seq_bytes, isfasta, kmer, bits, N=0, Ns=2**63):
-    for qid, seq_fw in seqio_jit_(seq_bytes, isfasta=isfasta):
+    #for qid, seq_fw in seqio_jit_(seq_bytes, isfasta=isfasta):
+    for qid, seq_fw, ptr in seqio_jit_(seq_bytes, isfasta=isfasta):
         res = rdbg_edge_weight(rdbg_edge, rdbg_dict, seq_fw, kmer, bits)
         N += len(seq_fw)
         if N > Ns:
@@ -1756,7 +1771,7 @@ def rdbg_edge_weight_jit_(rdbg_edge, rdbg_dict, seq_bytes, isfasta, kmer, bits, 
 @nb.njit
 def seqs2path_jit_(seq_bytes, isfasta, kmer, label_dct, bits=5, lastc=lastc, offbit=offbit, N=0, Ns=2**63):
 
-    for qid, seq_fw in seqio_jit_(seq_bytes, isfasta):
+    for qid, seq_fw, ptr in seqio_jit_(seq_bytes, isfasta):
         for st, ed, lab in seq2path_jit_(seq_fw, kmer, label_dct, bits=bits, lastc=lastc, offbit=offbit):
             #print('%s\t%d\t%d\t%s\t%d'%(i.id, st, ed, '+', lab))
             yield qid, st, ed, 1, lab
