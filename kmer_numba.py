@@ -140,7 +140,7 @@ def seqio_jit_(seq_bytes, offset=0, isfasta=True):
         start = end = 0
         #for st, ed in readline_jit_(seq_bytes):
         for st, ed in readline_jit_(seq_bytes, offset=offset):
-            ptr[0] = ed
+            ptr[0] = st
             line = seq_bytes[st: ed]
             if line[0] == 62:
                 if qid[0] == 62:
@@ -210,6 +210,7 @@ def parse_test(seq_types):
 
 # save the dict to disk
 def dump(clf, fn='./tmp'):
+    #print('213 clf size', clf.size, fn)
     fn = fn.endswith('.npz') and fn[:-4] or fn
 
     capacity = clf.capacity
@@ -1329,7 +1330,7 @@ def seq2rdbg_slow(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**63, dump='bre
 
 # parse sequences and save kmers in a dbg
 @nb.njit
-def seq2dbg_jit_(seq_bytes, kmer_dict, isfasta, kmer, bits=5, offbit=offbit, lastc=lastc, alpha=alpha, N=0, Ns=2**63):
+def seq2dbg_jit_0(seq_bytes, kmer_dict, isfasta, kmer, bits=5, offbit=offbit, lastc=lastc, alpha=alpha, N=0, Ns=2**63):
     #for qid, seq_fw in seqio_jit_(seq_bytes, isfasta=isfasta):
     for qid, seq_fw, ptr in seqio_jit_(seq_bytes, isfasta=isfasta):
 
@@ -1345,7 +1346,29 @@ def seq2dbg_jit_(seq_bytes, kmer_dict, isfasta, kmer, bits=5, offbit=offbit, las
 
     return N
 
-def seq2rdbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoint', saved='dBG_disk', hashfunc=oakht, jit=True):
+@nb.njit
+def seq2dbg_jit_(seq_bytes, kmer_dict, isfasta, kmer, bits=5, offbit=offbit, lastc=lastc, alpha=alpha, offset=0, chunk=2**32, N=0, Ns=2**63):
+    #for qid, seq_fw in seqio_jit_(seq_bytes, isfasta=isfasta):
+    chk = 0
+    for qid, seq_fw, ptr in seqio_jit_(seq_bytes, offset=offset, isfasta=isfasta):
+
+        # build dbg from fwd
+        res = build_dbg_jit_(seq_fw, kmer_dict, kmer=kmer, bit=bits, offbit=offbit, lastc=lastc, alpha=alpha)
+        # build dbg from rev
+        seq_rv = reverse_jit_(seq_fw)
+        res = build_dbg_jit_(seq_rv, kmer_dict, kmer=kmer, bit=bits, offbit=offbit, lastc=lastc, alpha=alpha)
+        N += 2 * len(seq_fw)
+        chk += 2 * len(seq_fw)
+        if chk > chunk:
+            return N, -1, ptr[0]
+
+        if N > Ns:
+            break
+
+    return N, 1, ptr[0]
+
+
+def seq2rdbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, brkpt='breakpoint', saved='dBG_disk', hashfunc=oakht, jit=True):
 
     kmer = min(max(1, kmer), 27)
     size = int(pow(bits, kmer)+1)
@@ -1364,7 +1387,18 @@ def seq2rdbg(qry, kmer=13, bits=5, Ns=1e6, rec=None, chunk=2**32, dump='breakpoi
     isfasta = seq_chk(qry) == 'fasta' and True or False
 
     seq_bytes = seq2bytes(qry)
-    N = seq2dbg_jit_(seq_bytes, kmer_dict, isfasta=isfasta, kmer=kmer, bits=bits, offbit=offbit, lastc=lastc, alpha=alpha, Ns=Ns)
+
+    #N, done, ptr = seq2dbg_jit_(seq_bytes, kmer_dict, isfasta=isfasta, kmer=kmer, bits=bits, offbit=offbit, lastc=lastc, alpha=alpha, Ns=Ns)
+    offset = 0
+    while 1:
+        N, done, ptr = seq2dbg_jit_(seq_bytes, kmer_dict, isfasta=isfasta, kmer=kmer, bits=bits, offbit=offbit, lastc=lastc, alpha=alpha, offset=offset, chunk=5, Ns=Ns)
+        if done == -1:
+            offset = ptr
+            # save the dbg on disk
+            dump(kmer_dict, qry+'_db_brkpt')
+            print('1395 saving temp on disk', qry, kmer_dict.size, ptr)
+        else:
+            break
 
     return kmer_dict
 
@@ -1972,6 +2006,7 @@ def entry_point(argv):
         print('# build the dBG')
         kmer_dict = seq2rdbg(qry, kmer, 5, Ns, rec=bkt)
         #kmer_dict = seq2rdbg_slow(qry, kmer, 5, Ns, rec=bkt)
+        #raise SystemExit()
 
         print('# save dBG to disk')
         dump(kmer_dict, qry+'_db')
