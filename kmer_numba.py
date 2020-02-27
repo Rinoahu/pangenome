@@ -219,6 +219,8 @@ def dump(clf, fn='./tmp', offset=0):
     ksize = clf.ksize
     parameters = np.asarray([capacity, load_factor, size, ksize, offset], dtype='uint64')
     np.savez_compressed(fn, parameters=parameters, keys=clf.keys, values=clf.values, counts=clf.counts)
+    #np.savez(fn, parameters=parameters, keys=clf.keys, values=clf.values, counts=clf.counts)
+
     return 0
 
 # load the dict from disk
@@ -1345,7 +1347,9 @@ def seq2dbg_jit_0(seq_bytes, kmer_dict, isfasta, kmer, bits=5, offbit=offbit, la
     return N
 
 @nb.njit
-def seq2dbg_jit_(seq_bytes, kmer_dict, isfasta, kmer, bits=5, offbit=offbit, lastc=lastc, alpha=alpha, offset=0, chunk=2**32, N=0, Ns=2**63):
+#def seq2dbg_jit_(seq_bytes, kmer_dict, isfasta, kmer, bits=5, offbit=offbit, lastc=lastc, alpha=alpha, offset=0, chunk=2**32, N=0, Ns=2**63):
+def seq2dbg_jit_(seq_bytes, kmer_dict, isfasta, kmer, bits=5, offbit=offbit, lastc=lastc, alpha=alpha, offset=0, chunk=2**32, Ns=2**63):
+    N = 0
     #for qid, seq_fw in seqio_jit_(seq_bytes, isfasta=isfasta):
     chk = 0
     for qid, seq_fw, ptr in seqio_jit_(seq_bytes, offset=offset, isfasta=isfasta):
@@ -1383,15 +1387,20 @@ def seq2rdbg(qry, kmer=13, bits=5, Ns=1e6, chunk=2**32, brkpt='./breakpoint', sa
     seq_bytes = seq2bytes(qry)
 
     #N, done, ptr = seq2dbg_jit_(seq_bytes, kmer_dict, isfasta=isfasta, kmer=kmer, bits=bits, offbit=offbit, lastc=lastc, alpha=alpha, Ns=Ns)
-    #offset = 0
+    N = 0
     while 1:
-        N, done, ptr = seq2dbg_jit_(seq_bytes, kmer_dict, isfasta=isfasta, kmer=kmer, bits=bits, offbit=offbit, lastc=lastc, alpha=alpha, offset=offset, chunk=chunk, Ns=Ns)
+        N_p, done, ptr = seq2dbg_jit_(seq_bytes, kmer_dict, isfasta=isfasta, kmer=kmer, bits=bits, offbit=offbit, lastc=lastc, alpha=alpha, offset=offset, chunk=chunk, Ns=Ns)
         if done == -1:
             offset = ptr
             # save the dbg on disk
             dump(kmer_dict, qry+'_db_brkpt', offset)
+            gc.collect()
             print('1395 saving temp on disk', qry, kmer_dict.size, offset)
         else:
+            break
+
+        N += N_p
+        if N > Ns:
             break
 
     return kmer_dict
@@ -1906,7 +1915,7 @@ def entry_point(argv):
     #except:
     #    pass
 
-    args = {'-i': '', '-k': '50', '-n': '1000000', '-r': '', '-d': ''}
+    args = {'-i': '', '-k': '50', '-n': '2**63', '-r': '', '-d': ''}
     N = len(argv)
 
     for i in xrange(1, N):
@@ -1999,8 +2008,9 @@ def entry_point(argv):
         # build the dbg
         print('# build the dBG')
         #kmer_dict = seq2rdbg(qry, kmer, 5, Ns, rec=bkt)
-        kmer_dict = seq2rdbg(qry, kmer, 5, Ns, brkpt=bkt, chunk=3)
+        kmer_dict = seq2rdbg(qry, kmer, 5, Ns, brkpt=bkt, chunk=2**33)
         #kmer_dict = seq2rdbg_slow(qry, kmer, 5, Ns, rec=bkt)
+        #raise SystemExit()
 
         print('# save dBG to disk')
         dump(kmer_dict, qry+'_db')
@@ -2009,7 +2019,6 @@ def entry_point(argv):
         del kmer_dict
         #kmer_dict = load_on_disk(qry+'_db.npz')
         offset, kmer_dict = load_on_disk(qry+'_db.npz')
-        #raise SystemExit()
 
         # convert dbg to reduced dbg
         print('# build the reduced dBG')
