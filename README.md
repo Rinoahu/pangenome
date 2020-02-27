@@ -11,7 +11,7 @@ This is a graph-based method to find the frequency across species. This method i
 
 Make sure that you have the following installed
 
-1. [PyPy2.7](http://pypy.org/download.html "http://pypy.org/download.html") (v5.10 or greater) with Biopython installed.
+1. [Python](https://www.python.org/ "https://www.python.org/") (3.7 or greater) with numba ("http://numba.pydata.org/") installed. We strongly recommand Anaconda ("https://www.anaconda.com/")
 
 2. [MCL](https://micans.org/mcl "https://micans.org/mcl"), a Markov Clustering algorithm.
 
