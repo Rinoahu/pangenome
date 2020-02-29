@@ -252,7 +252,8 @@ def load_on_disk(fn='./tmp', mmap='r+'):
     clf = init_dict(hashfunc=oakht, capacity=1, ksize=ksize, ktype=ktype, vtype=vtype, jit=True)
     #clf = init_dict(hashfunc=oakht, capacity=1, ksize=ksize)
     clf.capacity = capacity
-    clf.load = load_factor
+    #clf.load = load_factor
+    clf.load = .75
     clf.size = size
 
     clf.keys = keys
