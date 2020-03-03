@@ -264,282 +264,6 @@ def load_on_disk(fn='./tmp', mmap='r+'):
 
 
 # jit version
-class oakht0:
-    def __init__(self, capacity=1024, load_factor = .75, ksize=1, ktype=nb.int64, vtype=nb.int64):
-
-        self.capacity = self.find_prime(capacity)
-        self.load = load_factor
-        self.size = 0
-        self.ksize = ksize
-        N = self.capacity
-
-        self.keys = np.empty(N * ksize, dtype=ktype)
-        self.values = np.empty(N, dtype=vtype)
-        self.counts = np.zeros(N, dtype=nb.uint8)
-
-    # check a num is prime
-    def isprime(self, n) : 
-        if n <= 1 or n % 2 == 0 or n % 3 == 0: 
-            return False
-        if n == 2 or n == 3:
-            return True
-        i = 5
-        while(i * i <= n) : 
-            if n % i == 0 or n % (i + 2) == 0: 
-                return False
-            i += 6
-  
-        return True
-
-    # find the minimum prime that >= n
-    def find_prime(self, n):
-        for i in range(n, n+7*10**7):
-            if self.isprime(i):
-                return i
-
-    # clear the dict
-    def clear(self):
-        self.counts[:] = 0
- 
-    # clean data
-    def destroy(self):
-        #self.counts[:] = 0
-        keys_old, values_old, counts_old = self.keys, self.values, self.counts
-
-        keys = np.empty(self.ksize, dtype=keys_old.dtype)
-        values = np.empty(1, dtype=values_old.dtype)
-        counts = np.zeros(1, dtype=counts_old.dtype)
-        self.keys, self.values, self.counts = keys, values, counts
-
-        del keys_old, values_old, counts_old
-        #gc.collect()
-
-    # whether key0 == key1
-    def eq(self, k0, s0, k1, s1, N):
-        for i in xrange(N):
-            if k0[s0+i] != k1[s1+i]:
-                return False
-
-        return True
-
-    def fnv(self, data, start=0, end=0):
-        a, b, c = nb.ulonglong(0xcbf29ce484222325), nb.ulonglong(0x100000001b3), nb.ulonglong(0xffffffffffffffff)
-        if end - start == 1:
-            #val = nb.ulonglong(data[start])
-            val = data[start]
-            for i in xrange(4):
-                s = nb.ulonglong(val & 0b11111111)
-                a ^= s
-                a *= b
-                a &= c
-                #val = nb.ulonglong(val >> 2)
-                val = (val >> 8)
-        else:
-            for i in xrange(start, end):
-                s = nb.ulonglong(data[i])
-                a ^= s
-                a *= b
-                a &= c
-        return a
-
-    def hash_(self, data, start=0, size=1):
-        return self.fnv(data, start, start + size)
-
-    def resize(self):
-
-        # get old arrays
-        N = self.capacity
-        ks = self.ksize
-        keys_old, values_old, counts_old = self.keys, self.values, self.counts
-
-        # get new arrays
-        self.capacity = self.find_prime(nb.longlong(N * 1.62))
-        M = self.capacity
-
-        keys = np.empty(M * ks, dtype=keys_old.dtype)
-        values = np.empty(M, dtype=values_old.dtype)
-        counts = np.zeros(M, dtype=counts_old.dtype)
-
-        for i in xrange(N):
-            if counts_old[i] > 0:
-                value = values_old[i]
-                count = counts_old[i]
-                ik = i * ks
-                # new hash
-                j, k = self.hash_(keys_old, ik, ks) % M, 0
-                j_init = j
-                for k in xrange(N):
-                    jk = j * ks
-
-                    if counts[j] == 0 or self.eq(keys, jk, keys_old, ik, ks):
-                        break
-
-                    j = (j_init + k * k) % M
-
-                jk = j * ks
-                keys[jk: jk+ks] = keys_old[ik: ik+ks]
-                values[j] = value
-                counts[j] = count
-
-            else:
-                continue
-
-        self.keys = keys
-        self.values = values
-        self.counts = counts
-
-        del keys_old, values_old, counts_old
-
-        #gc.collect()
-
-    def pointer(self, key, start=0):
-        ks = self.ksize
-        M = self.capacity
-
-        #j, k = hash(key) % M, 0
-        j, k = self.hash_(key, start, ks) % M, 0
-
-        k = 0
-        j_init = j
-        for k in xrange(M):
-            jk = j * ks
-            if self.eq(self.keys, jk, key, start, ks) or self.counts[j] == 0:
-                #print('depth', k)
-                break
-
-            j = (j_init + k * k) % M
-
-        return j
-
-    def push(self, key, value, start=0):
-        j = self.pointer(key, start)
-        ks = self.ksize
-        jk = j * ks
-        if self.counts[j] == 0:
-            self.size += 1
-            self.keys[jk: jk+ks] = key[start: start+ks]
-
-        self.values[j] = value
-        self.counts[j] = min(self.counts[j] + 1, 255)
-
-        # if too many elements
-        if self.size * 1. / self.capacity > self.load:
-            a, b =  self.size, self.capacity
-            self.resize()
-            #print('before resize', a, b, 'after resize', self.size, self.capacity)
-
-    def __setitem__(self, key, value, start=0):
-        self.push(key, value, start)
-
-    def get(self, key, start=0):
-        j = self.pointer(key, start)
-        ks = self.ksize
-        jk = j * ks
-        if self.eq(self.keys, jk, key, start, ks):
-            return self.values[j]
-        else:
-            raise KeyError
-
-    def __getitem__(self, key, start=0):
-        self.get(key, start)
-
-    def get_count(self, key, start=0):
-        j = self.pointer(key)
-        ks = self.ksize
-        jk = j * ks
-        if self.eq(self.keys, jk, key, start, ks):
-            return self.counts[j]
-        else:
-            return 0
-
-    def __delitem__(self, key, start=0):
-        j = self.pointer(key)
-        ks = self.ksize
-        jk = j * ks
-        if self.eq(self.keys, jk, key, start, ks):
-            self.counts[j] = 0
-            self.size -= 1
-        else:
-            raise KeyError
-
-    def has_key(self, key, start=0):
-        j = self.pointer(key)
-        ks = self.ksize
-        jk = j * ks
-        return self.eq(self.keys, jk, key, start, ks)
-   
-    def iterkeys(self):
-        ks = self.ksize
-        for i in xrange(0, self.counts.shape[0]):
-            ik = i * ks
-            if self.counts[i] > 0:
-                yield self.keys[ik:ik+ks]
-
-    def __iter__(self):
-        self.iterkeys()
-
-    def itervalues(self):
-        for i in xrange(0, self.counts.shape[0]):
-            if self.counts[i] > 0:
-                yield self.values[i]
-
-
-    def iteritems(self):
-        ks = self.ksize
-        for i in xrange(0, self.counts.shape[0]):
-            ik = i * ks
-            if self.counts[i] > 0:
-                #print('k size', ks)
-                yield self.keys[ik:ik+ks], self.values[i]
-
-    def len(self):
-        return self.size
-
-    def __len__(self):
-        return self.size
-
-    # save hash table to disk
-    def dump(self, fname):
-        M = self.keys.shape
-        key_type, val_type = self.ktype, self.vtype
-        dump_keys, dump_fk = memmap(fname + '_dump_key.npy', shape=M, dtype=key_type)
-        dump_keys[:] = self.keys
-        dump_fk.close()
-
-        N = self.values.shape
-        dump_values, dump_fv = memmap(fname + '_dump_val.npy', shape=N, dtype=val_type)
-        dump_values[:] = self.values
-        dump_fv.close()
-
-        dump_counts, dump_fc = memmap(fname + '_dump_cnt.npy', shape=N, dtype='uint8')
-        dump_counts[:] = self.counts
-        dump_fc.close()
-
-    # load hash table from disk
-    def loading(self, fname):
-
-        key_type, val_type = self.ktype, self.vtype
-
-        dump_keys, dump_fk = memmap(fname + '_dump_key.npy', 'a+', dtype=key_type)
-        self.keys = np.array(dump_keys)
-        dump_fk.close()
-
-        dump_values, dump_fv = memmap(fname + '_dump_val.npy', 'a+', dtype=val_type)
-        self.values = np.array(dump_values)
-        dump_fv.close()
-
-        dump_counts, dump_fc = memmap(fname + '_dump_cnt.npy', 'a+', dtype='uint8')
-        self.counts = np.array(dump_counts)
-        dump_fc.close()
-
-        self.ksize = len(self.keys) // len(self.values)
-
-        capacity  = len(self.counts)
-        self.primes = [elem for elem in primes if elem >= capacity]
-        self.capacity = self.primes.pop()
-
-        self.size = (self.counts > 0).sum()
-
 # add multiple values
 class oakht:
     def __init__(self, capacity=1024, load_factor = .75, ksize=1, ktype=nb.int64, vsize=1, vtype=nb.int64):
@@ -638,6 +362,59 @@ class oakht:
         keys = np.empty(M * ks, dtype=keys_old.dtype)
         values = np.empty(M, dtype=values_old.dtype)
         counts = np.zeros(M, dtype=counts_old.dtype)
+
+        for i in xrange(N):
+            if counts_old[i] > 0:
+                ik = i * ks
+                # new hash
+                j, k = self.hash_(keys_old, ik, ks) % M, 0
+                j_init = j
+                for k in xrange(N):
+                    jk = j * ks
+
+                    if counts[j] == 0 or self.eq(keys, jk, keys_old, ik, ks):
+                        break
+
+                    j = (j_init + k * k) % M
+
+                jk = j * ks
+                keys[jk: jk+ks] = keys_old[ik: ik+ks]
+
+                iv, jv = i * vs, j * vs
+                values[jv: jv+vs] = values_old[iv: iv+vs]
+
+                counts[j] = counts_old[i]
+
+            else:
+                continue
+
+        self.keys = keys
+        self.values = values
+        self.counts = counts
+
+        del keys_old, values_old, counts_old
+
+        #gc.collect()
+
+    def resize_disk(self, keys=None, values=None, counts=None):
+
+        # get old arrays
+        N = self.capacity
+        ks = self.ksize
+        vs = self.vsize
+        keys_old, values_old, counts_old = self.keys, self.values, self.counts
+
+        # get new arrays
+        if keys == None:
+            self.capacity = self.find_prime(nb.longlong(N * 1.62))
+            M = self.capacity
+
+            keys = np.empty(M * ks, dtype=keys_old.dtype)
+            values = np.empty(M, dtype=values_old.dtype)
+            counts = np.zeros(M, dtype=counts_old.dtype)
+        else:
+            self.capacity = len(counts)
+            M = self.capacity
 
         for i in xrange(N):
             if counts_old[i] > 0:
