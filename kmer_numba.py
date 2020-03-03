@@ -347,7 +347,7 @@ class oakht:
     def hash_(self, data, start=0, size=1):
         return self.fnv(data, start, start + size)
 
-    def resize(self):
+    def resize(self, extend=True):
 
         # get old arrays
         N = self.capacity
@@ -356,7 +356,11 @@ class oakht:
         keys_old, values_old, counts_old = self.keys, self.values, self.counts
 
         # get new arrays
-        self.capacity = self.find_prime(nb.longlong(N * 1.62))
+        if extend:
+            self.capacity = self.find_prime(nb.longlong(N * 1.62))
+        else:
+            self.capacity = self.find_prime(nb.longlong(N / 1.62))
+
         M = self.capacity
 
         keys = np.empty(M * ks, dtype=keys_old.dtype)
@@ -460,7 +464,7 @@ class oakht:
 
         return j
 
-    def push(self, key, value, kstart=0, vstart=0):
+    def __setitem__(self, key, value, kstart=0, vstart=0, mmap=False):
         j = self.pointer(key, kstart)
         ks = self.ksize
         jk = j * ks
@@ -474,13 +478,17 @@ class oakht:
         self.counts[j] = min(self.counts[j] + 1, 255)
 
         # if too many elements
-        if self.size * 1. / self.capacity > self.load:
+        # loading factor
+        lfr = self.size * 1. / self.capacity
+        #if self.size * 1. / self.capacity > self.load and mmap == False:
+        if lfr > self.load and mmap == False:
             #a, b =  self.size, self.capacity
             self.resize()
             #print('before resize', a, b, 'after resize', self.size, self.capacity)
+        return lfr
 
-    def __setitem__(self, key, value, kstart=0, vstart=0):
-        self.push(key, value, kstart, vstart)
+    def push(self, key, value, kstart=0, vstart=0, mmap=False):
+        self.__setitem__(key, value, kstart, vstart, mmap)
 
     def get(self, key, start=0):
         j = self.pointer(key, start)
