@@ -1682,7 +1682,8 @@ def manual_print():
     print('Parameters:')
     print('  -i: query sequences in fasta format')
     print('  -k: kmer length')
-    print('  -n: length of query sequences for dbg')
+    print('  -d: the de bruijn graph')
+    print('  -n: length of query sequences for pan-genomic analysis')
 
 def entry_point(argv):
 
@@ -1712,6 +1713,10 @@ def entry_point(argv):
     # bkt, the breakpoint
     qry, kmer, Ns, bkt, dbs = args['-i'], int(args['-k']), int(eval(args['-n'])), args['-r'], args['-d']
     if not qry:
+
+        manual_print()
+        raise SystemExit()
+
         seq = 'ACCCATCGGGCTAAACCCCCCCCCCGATCGATCGAC'
         #seq = 'AAAAAAAAAAGAAAAAAAAAATAAAAAAAAAACAAAAAAAAAA'
         seq = 'AAAACCCCAATACCCCATAACCCC'
@@ -1784,7 +1789,23 @@ def entry_point(argv):
     if dbs:
         #print('recover from', bkt)
         # convert sequence to path and build the graph
-        dct = seq2graph(qry, kmer=kmer, bits=5, Ns=Ns, saved=dbs, hashfunc=oakht)
+        #dct = seq2graph(qry, kmer=kmer, bits=5, Ns=Ns, saved=dbs, hashfunc=oakht)
+
+        print('load dBG from disk')
+        offset, kmer_dict = load_on_disk(qry+'_db.npz')
+
+        # convert dbg to reduced dbg
+        print('# build the reduced dBG')
+        rdbg_dict = dbg2rdbg(kmer_dict)
+        kmer_dict.destroy()
+        del kmer_dict
+        gc.collect()
+
+        # convert sequence to path
+        print('# find fr')
+        dct = seq2graph(qry, kmer=kmer, bits=5, Ns=Ns, rdbg_dict=rdbg_dict, hashfunc=oakht)
+        #dct = seq2graph_slow(qry, kmer=kmer, bits=5, Ns=Ns, rdbg_dict=rdbg_dict, hashfunc=oakht)
+
     else:
         # build the dbg
         print('# build the dBG')
