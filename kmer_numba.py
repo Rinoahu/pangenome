@@ -1401,7 +1401,8 @@ def seq2graph0(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfun
     _o.close()
     
     # call the mcl for clustering
-    os.system('mcl %s --abc -I 1.5 -te 8 -o %s.mcl > log.mcl'%(_oname, _oname))
+    #os.system('mcl %s --abc -I 1.5 -te 8 -o %s.mcl > log.mcl'%(_oname, _oname))
+    os.system('mcl %s --abc -I 1.5 -te 8 -o %s.mcl -q x -V all'%(_oname, _oname))
 
     del rdbg_edge
     del rdbg_dict
@@ -1436,7 +1437,7 @@ def seq2graph0(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfun
             flag += 1
 
     N = 0
-    print('label_dct', len(label_dct))
+    print('# label_dct size', len(label_dct))
     for i in SeqIO.parse(qry, seq_type):
         seq_fw = str(i.seq)
 
@@ -1518,7 +1519,8 @@ def seq2graph_slow(qry, kmer=13, bits=5, Ns=1e6, rdbg_dict=None, saved=None, has
     _o.close()
     
     # call the mcl for clustering
-    os.system('mcl %s --abc -I 1.5 -te 8 -o %s.mcl > log.mcl'%(_oname, _oname))
+    #os.system('mcl %s --abc -I 1.5 -te 8 -o %s.mcl > log.mcl'%(_oname, _oname))
+    os.system('mcl %s --abc -I 1.5 -te 8 -o %s.mcl -q x -V all'%(_oname, _oname))
 
     del rdbg_edge
     del rdbg_dict
@@ -1624,7 +1626,8 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, rdbg_dict=None, saved=None, hashfunc
     _o.close()
     
     # call the mcl for clustering
-    os.system('mcl %s --abc -I 1.5 -te 8 -o %s.mcl > log.mcl'%(_oname, _oname))
+    #os.system('mcl %s --abc -I 1.5 -te 8 -o %s.mcl > log.mcl'%(_oname, _oname))
+    os.system('mcl %s --abc -I 1.5 -te 8 -o %s.mcl -q x -V all'%(_oname, _oname))
 
     del rdbg_edge
     del rdbg_dict
@@ -1658,7 +1661,7 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, rdbg_dict=None, saved=None, hashfunc
             label_dct[kk] = flag
             flag += 1
 
-    print('label_dct', len(label_dct))
+    print('# label_dct size', len(label_dct))
     for qid, st, ed, std, lab in seqs2path_jit_(seq_bytes, isfasta, kmer, label_dct, bits=bits, lastc=lastc, offbit=offbit, Ns=Ns):
         qid_byte = bytes(qid).decode()[1:]
         strand = std == 1 and '+' or '-'
