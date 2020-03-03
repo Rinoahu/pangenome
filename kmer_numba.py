@@ -396,7 +396,7 @@ class oakht:
 
         #gc.collect()
 
-    def resize_disk(self, keys=None, values=None, counts=None):
+    def resize_disk(self, keys, values, counts):
 
         # get old arrays
         N = self.capacity
@@ -405,16 +405,8 @@ class oakht:
         keys_old, values_old, counts_old = self.keys, self.values, self.counts
 
         # get new arrays
-        if keys == None:
-            self.capacity = self.find_prime(nb.longlong(N * 1.62))
-            M = self.capacity
-
-            keys = np.empty(M * ks, dtype=keys_old.dtype)
-            values = np.empty(M, dtype=values_old.dtype)
-            counts = np.zeros(M, dtype=counts_old.dtype)
-        else:
-            self.capacity = len(counts)
-            M = self.capacity
+        self.capacity = counts.size
+        M = self.capacity
 
         for i in xrange(N):
             if counts_old[i] > 0:
