@@ -237,7 +237,8 @@ def load_on_disk(fn='./tmp', mmap='r+'):
             np.empty(1, 'int8').dtype: nb.int8
             }
 
-    loaded = np.load(fn, mmap_mode='r+')
+    #loaded = np.load(fn, mmap_mode='r+')
+    loaded = np.load(fn, mmap_mode=mmap)
 
     parameters = loaded['parameters']
     capacity, load_factor, size, ksize, offset = parameters
