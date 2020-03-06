@@ -1419,6 +1419,15 @@ def rdbg_edge_weight(rdbg_edge, rdbg_dict, seq, kmer, offbit=offbit, bits=5):
         path_cmpr[p0: p0+4] = output
         p0 += 4
 
+    if len(visit) == 0:
+        n1, hd1, nt1 = k, hd, nt
+        h1 = nb.uint64(lastc[hd1]) << offbit
+        d1 = nb.uint64(lastc[nt1])
+        n0, h0, d0 = n1, h1, d1
+
+        k12 = (n0, h0|d0, n1, h1|d1)
+
+
     del path_cmpr
     del visit
     return 0
