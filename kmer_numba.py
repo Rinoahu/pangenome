@@ -214,7 +214,7 @@ def dump(clf, fn='./tmp', offset=0):
     fn = fn.endswith('.npz') and fn[:-4] or fn
 
     capacity = clf.capacity
-    load_factor = clf.load
+    load_factor = int(clf.load * 1e9)
     size = clf.size
     ksize = clf.ksize
     parameters = np.asarray([capacity, load_factor, size, ksize, offset], dtype='uint64')
@@ -254,7 +254,7 @@ def load_on_disk(fn='./tmp', mmap='r+'):
     #clf = init_dict(hashfunc=oakht, capacity=1, ksize=ksize)
     clf.capacity = capacity
     #clf.load = load_factor
-    clf.load = .75
+    clf.load = load_factor / 1e9
     clf.size = size
 
     clf.keys = keys
@@ -1219,8 +1219,8 @@ def build_rdbg_jit_(rdbg_dict, kmer_dict):
         if pr == sf == 1 and sf != 0b100000:
             continue
         else:
-            #rdbg_dict.push(k, hn)
             rdbg_dict.push(k, hns)
+            #rdbg_dict[k] = hns
 
     #return rdbg_dict
     return 0
@@ -1229,13 +1229,18 @@ def build_rdbg_jit_(rdbg_dict, kmer_dict):
 # build rdbg from dbg
 def dbg2rdbg(kmer_dict):
     rdbg_dict = init_dict(hashfunc=oakht, capacity=2**20, ksize=kmer_dict.ksize, ktype=nb.uint64, vsize=kmer_dict.vsize, vtype=nb.uint16, jit=True)
+
+    #rdbg_dict = Dict()
+    #rdbg_dict[nb.uint64(0)] = nb.uint16(0)
+    #rdbg_dict.clear()
+
     res = build_rdbg_jit_(rdbg_dict, kmer_dict)
     return rdbg_dict
 
 
 # get the weight of edge
 @nb.njit
-def rdbg_edge_weight(rdbg_edge, rdbg_dict, seq, kmer, bits=5):
+def rdbg_edge_weight0(rdbg_edge, rdbg_dict, seq, kmer, bits=5):
     minus_one = nb.uint64(-1)
     path_cmpr = List.empty_list(nb.uint64)
     path_rdbg = List.empty_list(nb.uint64)
@@ -1284,6 +1289,140 @@ def rdbg_edge_weight(rdbg_edge, rdbg_dict, seq, kmer, bits=5):
 
     del visit
     return 0
+
+@nb.njit
+def rdbg_edge_weight1(rdbg_edge, rdbg_dict, seq, kmer, bits=5):
+    minus_one = nb.uint64(-1)
+    Nseq = int(len(seq) // kmer + 1)
+    p0 = p1 = 0
+    #path_cmpr = List.empty_list(nb.uint64)
+    path_cmpr = np.empty(Nseq * 4, nb.uint64)
+    #path_rdbg = List.empty_list(nb.uint64)
+    path_rdbg = np.empty(len(seq) * 3, nb.uint64)
+
+    idx, idx_prev = minus_one, minus_one
+    for output in seq2ns_jit_(seq, kmer, bits):
+
+        idx, k, hd, nt = output
+        if k == minus_one:
+            continue
+
+        key = output[1:2]
+        if rdbg_dict.has_key(key):
+            #path_rdbg.extend(output[1:4])
+            #print('1308 output befoe', len(output), p1, len(path_rdbg))
+            path_rdbg[p1: p1+3] = output[1:4]
+            p1 += 3
+            #print('1311 output after', len(output), p1, len(path_rdbg))
+
+            if idx_prev == minus_one or idx_prev + kmer <= idx:
+                #path_cmpr.extend(output)
+                path_cmpr[p0: p0+4] = output
+                p0 += 4
+                idx_prev = idx
+
+    # if path is empty, then sequence has non-repetitive k-mer, add the last k-mer to path
+    #if len(path_cmpr) == 0:
+    if p0 == 0:
+        #path_cmpr.extend(output)
+        path_cmpr[p0: p0+4] = output
+        p0 += 4
+
+    N = len(path_rdbg)
+    visit = {}
+    #for i in range(0, N-3, 3):
+    for i in range(0, p1, 3):
+
+        n0, hd0, nt0 = path_rdbg[i: i+3]
+        h0 = lastc[hd0] << offbit
+        d0 = lastc[nt0]
+ 
+        n1, hd1, nt1 = path_rdbg[i+3: i+6]
+        h1 = lastc[hd1] << offbit
+        d1 = lastc[nt1]
+
+        k12 = (n0, nb.uint64(h0|d0), n1, nb.uint64(h1|d1))
+
+        # remove the repeat in the same sequences
+        if k12 not in visit:
+            visit[k12] = 1
+        else:
+            continue
+
+        try:
+            rdbg_edge[k12] += 1
+        except:
+            rdbg_edge[k12] = 1
+
+    del path_cmpr
+    del path_rdbg
+    del visit
+    return 0
+
+
+@nb.njit(error_model='numpy')
+def rdbg_edge_weight(rdbg_edge, rdbg_dict, seq, kmer, offbit=offbit, bits=5):
+    minus_one = nb.uint64(-1)
+    Nseq = int(len(seq) // kmer + 1)
+    p0 = p1 = 0
+    path_cmpr = np.empty(Nseq * 4, nb.uint64)
+    #path_rdbg = np.empty(len(seq), nb.uint64)
+
+    n0 = h0 = d0 = n1 = h1 = d1 = minus_one
+
+    visit = {}
+    idx, idx_prev = minus_one, minus_one
+    for output in seq2ns_jit_(seq, kmer, bits):
+
+        idx, k, hd, nt = output
+        if k == minus_one:
+            continue
+
+        key = output[1:2]
+        if rdbg_dict.has_key(key):
+            if n0 == minus_one:
+                n0, hd0, nt0 = k, hd, nt
+                h0 = nb.uint64(lastc[hd0]) << offbit
+                d0 = nb.uint64(lastc[nt0])
+
+            else:
+                n1, hd1, nt1 = k, hd, nt
+                h1 = nb.uint64(lastc[hd1]) << offbit
+                d1 = nb.uint64(lastc[nt1])
+
+                k12 = (n0, h0|d0, n1, h1|d1)
+                # remove the repeat in the same sequences
+                if k12 not in visit:
+                    visit[k12] = 1
+                    try:
+                        rdbg_edge[k12] += 1
+                    except:
+                        rdbg_edge[k12] = 1
+
+                #try:
+                #    rdbg_edge[k12] += 1
+                #except:
+                #    rdbg_edge[k12] = 1
+
+                n0, h0, d0 = n1, h1, d1
+
+            if idx_prev == minus_one or idx_prev + kmer <= idx:
+                #path_cmpr.extend(output)
+                path_cmpr[p0: p0+4] = output
+                p0 += 4
+                idx_prev = idx
+
+    # if path is empty, then sequence has non-repetitive k-mer, add the last k-mer to path
+    #if len(path_cmpr) == 0:
+    if p0 == 0:
+        #path_cmpr.extend(output)
+        path_cmpr[p0: p0+4] = output
+        p0 += 4
+
+    del path_cmpr
+    del visit
+    return 0
+
 
 
 # compress the sequences into path and print
@@ -1625,7 +1764,7 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, rdbg_dict=None, saved=None, hashfunc
         _o.write(xyz)
 
     _o.close()
-    
+
     # call the mcl for clustering
     #os.system('mcl %s --abc -I 1.5 -te 8 -o %s.mcl > log.mcl'%(_oname, _oname))
     os.system('mcl %s --abc -I 1.5 -te 8 -o %s.mcl -q x -V all'%(_oname, _oname))
