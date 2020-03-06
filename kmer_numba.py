@@ -208,23 +208,58 @@ def parse_test(seq_types):
 
     return 0
 
-# save the dict to disk
-def dump(clf, fn='./tmp', offset=0):
-    #print('213 clf size', clf.size, fn)
-    fn = fn.endswith('.npz') and fn[:-4] or fn
+# dict to array
+@nb.njit
+def dict2array(clf, ksize=1, vsize=1):
+    N = len(clf)
+    keys = np.empty(N, nb.uint64)
+    values = np.empty(N, nb.uint64)
+    for i in range(N):
+        key, val = clf.popitem()
+        keys[i] = key
+        values[i] = val
 
-    capacity = clf.capacity
-    load_factor = int(clf.load * 1e9)
-    size = clf.size
-    ksize = clf.ksize
-    parameters = np.asarray([capacity, load_factor, size, ksize, offset], dtype='uint64')
-    np.savez_compressed(fn, parameters=parameters, keys=clf.keys, values=clf.values, counts=clf.counts)
-    #np.savez(fn, parameters=parameters, keys=clf.keys, values=clf.values, counts=clf.counts)
+    return keys, values
+
+# save the dict to disk
+def dump(clf, fn='./tmp', offset=0, jit=False, ksize=1, vsize=1):
+    fn = fn.endswith('.npz') and fn[:-4] or fn
+    if jit:
+        # save numba dict to disk
+        parameters = np.asarray([ksize, vsize], dtype='uint64')
+        keys, values = dict2array(clf, ksize, vsize)
+        np.savez_compressed(fn, parameters=parameters, keys=keys, values=values)
+
+    else:
+        capacity = clf.capacity
+        load_factor = int(clf.load * 1e9)
+        size = clf.size
+        ksize = clf.ksize
+        parameters = np.asarray([capacity, load_factor, size, ksize, offset], dtype='uint64')
+        np.savez_compressed(fn, parameters=parameters, keys=clf.keys, values=clf.values, counts=clf.counts)
 
     return 0
 
+#@nb.njit
+def array2dict(keys, values, ksize=1, vsize=1):
+    clf = Dict()
+    N = min(len(keys) // ksize, len(values) // vsize)
+    for i in range(N):
+        ik = i * ksize
+        key = tuple(keys[ik:ik+ksize])
+
+        iv = i * vsize
+        if vsize == 1:
+            val = values[iv]
+        else:
+            val = values[iv: iv+vsize]
+
+        clf[key] = val
+
+    return clf
+
 # load the dict from disk
-def load_on_disk(fn='./tmp', mmap='r+'):
+def load_on_disk(fn='./tmp', mmap='r+', jit=False):
 
     dtypes = {
             np.empty(1, 'uint64').dtype: nb.uint64,
@@ -240,26 +275,30 @@ def load_on_disk(fn='./tmp', mmap='r+'):
     #loaded = np.load(fn, mmap_mode='r+')
     loaded = np.load(fn, mmap_mode=mmap)
 
-    parameters = loaded['parameters']
-    capacity, load_factor, size, ksize, offset = parameters
+    if jit:
+        clf = array2dict(keys, values, ksize, vsize)
 
-    keys = loaded['keys']
-    values = loaded['values']
-    counts = loaded['counts']
+    else:
+        parameters = loaded['parameters']
+        capacity, load_factor, size, ksize, offset = parameters
 
-    ktype = dtypes[keys.dtype]
-    vtype = dtypes[values.dtype]
+        keys = loaded['keys']
+        values = loaded['values']
+        counts = loaded['counts']
 
-    clf = init_dict(hashfunc=oakht, capacity=1, ksize=ksize, ktype=ktype, vtype=vtype, jit=True)
-    #clf = init_dict(hashfunc=oakht, capacity=1, ksize=ksize)
-    clf.capacity = capacity
-    #clf.load = load_factor
-    clf.load = load_factor / 1e9
-    clf.size = size
+        ktype = dtypes[keys.dtype]
+        vtype = dtypes[values.dtype]
 
-    clf.keys = keys
-    clf.values = values
-    clf.counts = counts
+        clf = init_dict(hashfunc=oakht, capacity=1, ksize=ksize, ktype=ktype, vtype=vtype, jit=True)
+        #clf = init_dict(hashfunc=oakht, capacity=1, ksize=ksize)
+        clf.capacity = capacity
+        #clf.load = load_factor
+        clf.load = load_factor / 1e9
+        clf.size = size
+
+        clf.keys = keys
+        clf.values = values
+        clf.counts = counts
 
     return offset, clf
 
@@ -1759,6 +1798,22 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, rdbg_dict=None, saved=None, hashfunc
 
     seq_bytes = seq2bytes(qry)
     N = rdbg_edge_weight_jit_(rdbg_edge, rdbg_dict, seq_bytes, isfasta, kmer, bits, Ns=Ns)
+    
+    # write intermediate results to disk
+    while 1:
+        #N_p, done, ptr = rdbg_edge_weight_jit_()
+        break
+        N_p, done, ptr = rdbg_edge_weight_jit_(rdbg_edge, rdbg_dict, seq_bytes, isfasta, kmer, bits, offset=offset, chunk=chunk, Ns=Ns)
+
+        if done == -1:
+            offset = ptr
+            # save the dbg on disk
+            dump(kmer_dict, qry+'_db_brkpt', offset)
+            gc.collect()
+            #print('1395 saving temp on disk', qry, kmer_dict.size, offset)
+        else:
+            break
+
 
     #print('rdbg size 1665', len(rdbg_edge))
     _oname = qry + '_rdbg_weight.xyz'
@@ -1774,7 +1829,7 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, rdbg_dict=None, saved=None, hashfunc
 
     _o.close()
 
-    #raise SystemExit()
+    return 1
 
     # call the mcl for clustering
     #os.system('mcl %s --abc -I 1.5 -te 8 -o %s.mcl > log.mcl'%(_oname, _oname))
@@ -1958,32 +2013,43 @@ def entry_point(argv):
         #dct = seq2graph_slow(qry, kmer=kmer, bits=5, Ns=Ns, rdbg_dict=rdbg_dict, hashfunc=oakht)
 
     else:
+        from time import time
         # build the dbg
         print('# build the dBG')
+        st = time()
         #kmer_dict = seq2rdbg(qry, kmer, 5, Ns, rec=bkt)
         kmer_dict = seq2rdbg(qry, kmer, 5, Ns, brkpt=bkt, chunk=2**33)
         #kmer_dict = seq2rdbg_slow(qry, kmer, 5, Ns, rec=bkt)
         #raise SystemExit()
+        print('# finished in', time() - st, 'seconds')
 
         print('# save dBG to disk')
+        st = time()
         dump(kmer_dict, qry+'_db')
+        print('# finished in', time() - st, 'seconds')
 
         print('# load dBG from disk')
+        st = time()
         del kmer_dict
         #kmer_dict = load_on_disk(qry+'_db.npz')
         offset, kmer_dict = load_on_disk(qry+'_db.npz')
+        print('# finished in', time() - st, 'seconds')
 
         # convert dbg to reduced dbg
         print('# build the reduced dBG')
+        st = time()
         rdbg_dict = dbg2rdbg(kmer_dict)
         kmer_dict.destroy()
         del kmer_dict
         gc.collect()
+        print('# finished in', time() - st, 'seconds')
 
         # convert sequence to path
         print('# find fr')
+        st = time()
         dct = seq2graph(qry, kmer=kmer, bits=5, Ns=Ns, rdbg_dict=rdbg_dict, hashfunc=oakht)
         #dct = seq2graph_slow(qry, kmer=kmer, bits=5, Ns=Ns, rdbg_dict=rdbg_dict, hashfunc=oakht)
+        print('# finished in', time() - st, 'seconds')
 
     return 0
     #return dct
