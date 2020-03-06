@@ -1239,7 +1239,7 @@ def dbg2rdbg(kmer_dict):
 
 
 # get the weight of edge
-@nb.njit
+@nb.njit(error_model='numpy')
 def rdbg_edge_weight0(rdbg_edge, rdbg_dict, seq, kmer, bits=5):
     minus_one = nb.uint64(-1)
     path_cmpr = List.empty_list(nb.uint64)
@@ -1764,6 +1764,8 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, rdbg_dict=None, saved=None, hashfunc
         _o.write(xyz)
 
     _o.close()
+
+    raise SystemExit()
 
     # call the mcl for clustering
     #os.system('mcl %s --abc -I 1.5 -te 8 -o %s.mcl > log.mcl'%(_oname, _oname))
