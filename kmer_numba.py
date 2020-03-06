@@ -1765,7 +1765,7 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, rdbg_dict=None, saved=None, hashfunc
 
     _o.close()
 
-    raise SystemExit()
+    #raise SystemExit()
 
     # call the mcl for clustering
     #os.system('mcl %s --abc -I 1.5 -te 8 -o %s.mcl > log.mcl'%(_oname, _oname))
