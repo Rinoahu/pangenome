@@ -2085,7 +2085,7 @@ def entry_point(argv):
         # convert sequence to path
         print('# find fr')
         st = time()
-        dct = seq2graph(qry, kmer=kmer, bits=5, Ns=Ns, rdbg_dict=rdbg_dict, hashfunc=oakht, chunk=10**8, brkpt=rbk)
+        dct = seq2graph(qry, kmer=kmer, bits=5, Ns=Ns, rdbg_dict=rdbg_dict, hashfunc=oakht, chunk=2**33, brkpt=rbk)
         #dct = seq2graph_slow(qry, kmer=kmer, bits=5, Ns=Ns, rdbg_dict=rdbg_dict, hashfunc=oakht)
         print('# finished in', time() - st, 'seconds')
 
