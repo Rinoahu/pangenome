@@ -215,18 +215,17 @@ def dict2array(clf, ksize=1, vsize=1):
     keys = np.empty(N * ksize, nb.uint64)
     values = np.empty(N * vsize, nb.uint64)
 
-    #for i in range(N):
-    #    key, val = clf.popitem()
-
-    i = 0
-    for key, val in clf.items():
+    for i in range(N):
+        key, val = clf.popitem()
+    #i = 0
+    #for key, val in clf.items():
         ik = i * ksize
         keys[ik:ik+ksize] = key
 
         iv = i * vsize
         values[iv: iv+vsize] = val
         #values[i] = val
-        i += 1
+        #i += 1
 
     return keys, values
 
@@ -1233,7 +1232,7 @@ def seq2rdbg(qry, kmer=13, bits=5, Ns=1e6, chunk=2**32, brkpt='./breakpoint', sa
             # save the dbg on disk
             dump(kmer_dict, qry+'_db_brkpt', offset)
             gc.collect()
-            print('1395 saving temp on disk', qry, kmer_dict.size, offset)
+            #print('1395 saving temp on disk', qry, kmer_dict.size, offset)
         else:
             break
 
@@ -1609,7 +1608,6 @@ def seq2graph0(qry, kmer=13, bits=5, Ns=1e6, kmer_dict=None, saved=None, hashfun
     _o.close()
     
     # call the mcl for clustering
-    #os.system('mcl %s --abc -I 1.5 -te 8 -o %s.mcl > log.mcl'%(_oname, _oname))
     os.system('mcl %s --abc -I 1.5 -te 8 -o %s.mcl -q x -V all'%(_oname, _oname))
 
     del rdbg_edge
@@ -1727,7 +1725,6 @@ def seq2graph_slow(qry, kmer=13, bits=5, Ns=1e6, rdbg_dict=None, saved=None, has
     _o.close()
     
     # call the mcl for clustering
-    #os.system('mcl %s --abc -I 1.5 -te 8 -o %s.mcl > log.mcl'%(_oname, _oname))
     os.system('mcl %s --abc -I 1.5 -te 8 -o %s.mcl -q x -V all'%(_oname, _oname))
 
     del rdbg_edge
@@ -1872,7 +1869,6 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, brkpt='./breakpoint_rdbg.npz', rdbg_
     _o.close()
 
     # call the mcl for clustering
-    #os.system('mcl %s --abc -I 1.5 -te 8 -o %s.mcl > log.mcl'%(_oname, _oname))
     os.system('mcl %s --abc -I 1.5 -te 8 -o %s.mcl -q x -V all'%(_oname, _oname))
 
     del rdbg_edge
@@ -2089,7 +2085,7 @@ def entry_point(argv):
         # convert sequence to path
         print('# find fr')
         st = time()
-        dct = seq2graph(qry, kmer=kmer, bits=5, Ns=Ns, rdbg_dict=rdbg_dict, hashfunc=oakht, chunk=8, brkpt=rbk)
+        dct = seq2graph(qry, kmer=kmer, bits=5, Ns=Ns, rdbg_dict=rdbg_dict, hashfunc=oakht, chunk=10**8, brkpt=rbk)
         #dct = seq2graph_slow(qry, kmer=kmer, bits=5, Ns=Ns, rdbg_dict=rdbg_dict, hashfunc=oakht)
         print('# finished in', time() - st, 'seconds')
 
