@@ -308,7 +308,7 @@ def load_on_disk(fn='./tmp', mmap='r+', jit=False):
         vtype = dtypes[values.dtype]
 
         #clf = init_dict(hashfunc=oakht, capacity=1, ksize=ksize)
-        clf = init_dict(hashfunc=oakht, capacity=1, ksize=ksize, ktype=ktype, vtype=vtype, jit=True)
+        #clf = init_dict(hashfunc=oakht, capacity=1, ksize=ksize, ktype=ktype, vtype=vtype, jit=True)
         clf = init_dict(hashfunc=oakht, capacity=1, ksize=ksize, ktype=ktype, vsize=vsize, vtype=vtype, jit=True)
         clf.capacity = capacity
         #clf.load = load_factor
