@@ -212,8 +212,8 @@ def parse_test(seq_types):
 @nb.njit
 def dict2array(clf, ksize=1, vsize=1):
     N = len(clf)
-    keys = np.empty(N * ksize, nb.uint64)
-    values = np.empty(N * vsize, nb.uint64)
+    keys = np.empty(N * ksize, dtype=np.uint64)
+    values = np.empty(N * vsize, dtype=np.uint64)
 
     for i in range(N):
         key, val = clf.popitem()
@@ -1230,7 +1230,7 @@ def seq2rdbg(qry, kmer=13, bits=5, Ns=1e6, chunk=2**32, brkpt='./breakpoint', sa
         if done == -1:
             offset = ptr
             # save the dbg on disk
-            dump(kmer_dict, qry+'_db_brkpt', offset)
+            dump(kmer_dict, qry+'_db_brkpt', offset=offset)
             gc.collect()
             #print('1395 saving temp on disk', qry, kmer_dict.size, offset)
         else:
@@ -2030,6 +2030,8 @@ def entry_point(argv):
             oa_test_jit(N, mkey, clf)
         raise SystemExit()
 
+
+    chunk = 2 ** 33
     if dbs:
         #print('recover from', bkt)
         # convert sequence to path and build the graph
@@ -2047,7 +2049,8 @@ def entry_point(argv):
 
         # convert sequence to path
         print('# find fr')
-        dct = seq2graph(qry, kmer=kmer, bits=5, Ns=Ns, rdbg_dict=rdbg_dict, hashfunc=oakht, brkpt=rbk)
+        #dct = seq2graph(qry, kmer=kmer, bits=5, Ns=Ns, rdbg_dict=rdbg_dict, hashfunc=oakht, brkpt=rbk)
+        dct = seq2graph(qry, kmer=kmer, bits=5, Ns=Ns, rdbg_dict=rdbg_dict, hashfunc=oakht, chunk=chunk, brkpt=rbk)
         #dct = seq2graph_slow(qry, kmer=kmer, bits=5, Ns=Ns, rdbg_dict=rdbg_dict, hashfunc=oakht)
 
     else:
@@ -2056,7 +2059,7 @@ def entry_point(argv):
         print('# build the dBG')
         st = time()
         #kmer_dict = seq2rdbg(qry, kmer, 5, Ns, rec=bkt)
-        kmer_dict = seq2rdbg(qry, kmer, 5, Ns, brkpt=bkt, chunk=2**33)
+        kmer_dict = seq2rdbg(qry, kmer, 5, Ns, brkpt=bkt, chunk=chunk)
         #kmer_dict = seq2rdbg_slow(qry, kmer, 5, Ns, rec=bkt)
         #raise SystemExit()
         print('# finished in', time() - st, 'seconds')
@@ -2085,7 +2088,7 @@ def entry_point(argv):
         # convert sequence to path
         print('# find fr')
         st = time()
-        dct = seq2graph(qry, kmer=kmer, bits=5, Ns=Ns, rdbg_dict=rdbg_dict, hashfunc=oakht, chunk=2**33, brkpt=rbk)
+        dct = seq2graph(qry, kmer=kmer, bits=5, Ns=Ns, rdbg_dict=rdbg_dict, hashfunc=oakht, chunk=chunk, brkpt=rbk)
         #dct = seq2graph_slow(qry, kmer=kmer, bits=5, Ns=Ns, rdbg_dict=rdbg_dict, hashfunc=oakht)
         print('# finished in', time() - st, 'seconds')
 
