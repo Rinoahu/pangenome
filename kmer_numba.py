@@ -2038,7 +2038,8 @@ def entry_point(argv):
         #dct = seq2graph(qry, kmer=kmer, bits=5, Ns=Ns, saved=dbs, hashfunc=oakht)
 
         print('load dBG from disk')
-        offset, kmer_dict = load_on_disk(qry+'_db.npz')
+        #offset, kmer_dict = load_on_disk(qry+'_db.npz')
+        offset, kmer_dict = load_on_disk(db)
 
         # convert dbg to reduced dbg
         print('# build the reduced dBG')
