@@ -2039,7 +2039,7 @@ def entry_point(argv):
 
         print('load dBG from disk')
         #offset, kmer_dict = load_on_disk(qry+'_db.npz')
-        offset, kmer_dict = load_on_disk(db)
+        offset, kmer_dict = load_on_disk(dbs)
 
         # convert dbg to reduced dbg
         print('# build the reduced dBG')
