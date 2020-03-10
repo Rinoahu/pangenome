@@ -1925,7 +1925,7 @@ def manual_print():
     print('  -i: query sequences in fasta format')
     print('  -k: kmer length')
     print('  -d: the de bruijn graph')
-    print('  -r: break point of reduced de bruijn graph')
+    print('  -r: break point of de bruijn graph')
     print('  -R: break point of reduced de bruijn graph')
     print('  -n: length of query sequences for pan-genomic analysis')
 
