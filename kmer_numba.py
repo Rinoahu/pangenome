@@ -1185,7 +1185,7 @@ def seq2dbg_jit_0(seq_bytes, kmer_dict, isfasta, kmer, bits=5, offbit=offbit, la
 
 @nb.njit
 #def seq2dbg_jit_(seq_bytes, kmer_dict, isfasta, kmer, bits=5, offbit=offbit, lastc=lastc, alpha=alpha, offset=0, chunk=2**32, N=0, Ns=2**63):
-def seq2dbg_jit_(seq_bytes, kmer_dict, isfasta, kmer, bits=5, offbit=offbit, lastc=lastc, alpha=alpha, offset=0, chunk=2**32, N=0, Ns=2**63):
+def seq2dbg_jit_(seq_bytes, kmer_dict, isfasta, kmer, bits=5, offbit=offbit, lastc=lastc, alpha=alpha, offset=0, chunk=2**32, N=0, Ns=2**63, rc=True):
     #N = 0
     #for qid, seq_fw in seqio_jit_(seq_bytes, isfasta=isfasta):
     chk = 0
@@ -1193,11 +1193,18 @@ def seq2dbg_jit_(seq_bytes, kmer_dict, isfasta, kmer, bits=5, offbit=offbit, las
 
         # build dbg from fwd
         res = build_dbg_jit_(seq_fw, kmer_dict, kmer=kmer, bit=bits, offbit=offbit, lastc=lastc, alpha=alpha)
-        # build dbg from rev
-        seq_rv = reverse_jit_(seq_fw)
-        res = build_dbg_jit_(seq_rv, kmer_dict, kmer=kmer, bit=bits, offbit=offbit, lastc=lastc, alpha=alpha)
         N += len(seq_fw)
         chk += len(seq_fw)
+
+        if rc:
+            # build dbg from rev
+            seq_rv = reverse_jit_(seq_fw)
+            res = build_dbg_jit_(seq_rv, kmer_dict, kmer=kmer, bit=bits, offbit=offbit, lastc=lastc, alpha=alpha)
+
+            N += len(seq_rv)
+            chk += len(seq_rv)
+
+
         if chk > chunk:
             return N, -1, ptr[0]
 
@@ -1207,7 +1214,8 @@ def seq2dbg_jit_(seq_bytes, kmer_dict, isfasta, kmer, bits=5, offbit=offbit, las
     return N, 1, ptr[0]
 
 
-def seq2rdbg(qry, kmer=13, bits=5, Ns=1e6, chunk=2**32, brkpt='./breakpoint', saved='dBG_disk', hashfunc=oakht, jit=True):
+#def seq2rdbg(qry, kmer=13, bits=5, Ns=1e6, chunk=2**32, brkpt='./breakpoint', saved='dBG_disk', hashfunc=oakht, jit=True):
+def seq2rdbg(qry, kmer=13, bits=5, Ns=1e6, chunk=2**32, brkpt='./breakpoint', saved='dBG_disk', hashfunc=oakht, jit=True, rc=True):
 
     kmer = min(max(1, kmer), 27)
     size = int(pow(bits, kmer)+1)
@@ -1226,7 +1234,8 @@ def seq2rdbg(qry, kmer=13, bits=5, Ns=1e6, chunk=2**32, brkpt='./breakpoint', sa
     #N, done, ptr = seq2dbg_jit_(seq_bytes, kmer_dict, isfasta=isfasta, kmer=kmer, bits=bits, offbit=offbit, lastc=lastc, alpha=alpha, Ns=Ns)
     N = 0
     while 1:
-        N_p, done, ptr = seq2dbg_jit_(seq_bytes, kmer_dict, isfasta=isfasta, kmer=kmer, bits=bits, offbit=offbit, lastc=lastc, alpha=alpha, offset=offset, chunk=chunk, Ns=Ns)
+        #N_p, done, ptr = seq2dbg_jit_(seq_bytes, kmer_dict, isfasta=isfasta, kmer=kmer, bits=bits, offbit=offbit, lastc=lastc, alpha=alpha, offset=offset, chunk=chunk, Ns=Ns)
+        N_p, done, ptr = seq2dbg_jit_(seq_bytes, kmer_dict, isfasta=isfasta, kmer=kmer, bits=bits, offbit=offbit, lastc=lastc, alpha=alpha, offset=offset, chunk=chunk, Ns=Ns, rc=rc)
         if done == -1:
             offset = ptr
             # save the dbg on disk
@@ -1779,12 +1788,15 @@ def seq2graph_slow(qry, kmer=13, bits=5, Ns=1e6, rdbg_dict=None, saved=None, has
 
 # get the weight of the reduced dbg
 @nb.njit
-def rdbg_edge_weight_jit_(rdbg_edge, rdbg_dict, seq_bytes, isfasta, kmer, bits, offset=0, chunk=2**32, N=0, Ns=2**63):
+def rdbg_edge_weight_jit_(rdbg_edge, rdbg_dict, seq_bytes, isfasta, kmer, bits, offset=0, chunk=2**32, N=0, Ns=2**63, rc=False):
     #for qid, seq_fw in seqio_jit_(seq_bytes, isfasta=isfasta):
     #for qid, seq_fw, ptr in seqio_jit_(seq_bytes, isfasta=isfasta):
     chk = 0
     for qid, seq_fw, ptr in seqio_jit_(seq_bytes, offset=offset, isfasta=isfasta): 
         res = rdbg_edge_weight(rdbg_edge, rdbg_dict, seq_fw, kmer, bits)
+        if rc:
+            seq_rv = reverse_jit_(seq_fw)
+            res = rdbg_edge_weight(rdbg_edge, rdbg_dict, seq_rv, kmer, bits)
 
         N += len(seq_fw)
         if N > Ns:
@@ -1798,19 +1810,29 @@ def rdbg_edge_weight_jit_(rdbg_edge, rdbg_dict, seq_bytes, isfasta, kmer, bits, 
 
 # convert sequences into path
 @nb.njit
-def seqs2path_jit_(seq_bytes, isfasta, kmer, label_dct, bits=5, lastc=lastc, offbit=offbit, N=0, Ns=2**63):
+def seqs2path_jit_(seq_bytes, isfasta, kmer, label_dct, bits=5, lastc=lastc, offbit=offbit, N=0, Ns=2**63, rc=False):
 
     for qid, seq_fw, ptr in seqio_jit_(seq_bytes, isfasta):
+
+        lseq = len(seq_fw)
         for st, ed, lab in seq2path_jit_(seq_fw, kmer, label_dct, bits=bits, lastc=lastc, offbit=offbit):
             #print('%s\t%d\t%d\t%s\t%d'%(i.id, st, ed, '+', lab))
             yield qid, st, ed, 1, lab
 
-        N += len(seq_fw)
+        if rc:
+            seq_rv = reverse_jit_(seq_fw)
+            for st, ed, lab in seq2path_jit_(seq_rv, kmer, label_dct, bits=bits, lastc=lastc, offbit=offbit):
+                edc, stc = nb.int32(lseq - st), nb.int32(lseq - ed)
+                yield qid, stc, edc, -1, lab
+                #yield qid, st, ed, -1, lab
+
+        N += lseq
         if N > Ns:
             break
 
 
-def seq2graph(qry, kmer=13, bits=5, Ns=1e6, brkpt='./breakpoint_rdbg.npz', rdbg_dict=None, saved=None, hashfunc=oakht, jit=True, chunk=2**33):
+#def seq2graph(qry, kmer=13, bits=5, Ns=1e6, brkpt='./breakpoint_rdbg.npz', rdbg_dict=None, saved=None, hashfunc=oakht, jit=True, chunk=2**33):
+def seq2graph(qry, kmer=13, bits=5, Ns=1e6, brkpt='./breakpoint_rdbg.npz', rdbg_dict=None, saved=None, hashfunc=oakht, jit=True, chunk=2**33, rc=False):
 
     kmer = min(max(1, kmer), 27)
     #seq_type = seq_chk(qry)
@@ -1818,7 +1840,6 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, brkpt='./breakpoint_rdbg.npz', rdbg_
 
     if os.path.isfile(brkpt):
         offset, rdbg_edge = load_on_disk(brkpt, jit=True)
-        print('1824 break', offset, len(rdbg_edge))
 
     else:
         rdbg_edge = Dict()
@@ -1837,7 +1858,7 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, brkpt='./breakpoint_rdbg.npz', rdbg_
     while 1:
         #N_p, done, ptr = rdbg_edge_weight_jit_()
         #break
-        N_p, done, ptr = rdbg_edge_weight_jit_(rdbg_edge, rdbg_dict, seq_bytes, isfasta, kmer, bits, offset=offset, chunk=chunk, N=N, Ns=Ns)
+        N_p, done, ptr = rdbg_edge_weight_jit_(rdbg_edge, rdbg_dict, seq_bytes, isfasta, kmer, bits, offset=offset, chunk=chunk, N=N, Ns=Ns, rc=rc)
 
         if done == -1:
             offset = ptr
@@ -1846,13 +1867,9 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, brkpt='./breakpoint_rdbg.npz', rdbg_
             dump(rdbg_edge, qry+'_rdb_brkpt', jit=True, ksize=4, vsize=1, offset=offset)
             gc.collect()
             offset, rdbg_edge = load_on_disk(qry+'_rdb_brkpt.npz', jit=True)
-            print('1852 loading hash table', offset, len(rdbg_edge))
        
         else:
             break
-
-    print('1857 loading hash table', offset, len(rdbg_edge))
-
 
     #print('rdbg size 1665', len(rdbg_edge))
     _oname = qry + '_rdbg_weight.xyz'
@@ -1902,20 +1919,17 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, brkpt='./breakpoint_rdbg.npz', rdbg_
         if kk not in label_dct:
             label_dct[kk] = flag
             flag += 1
-
-    print('# label_dct size', len(label_dct))
-    for qid, st, ed, std, lab in seqs2path_jit_(seq_bytes, isfasta, kmer, label_dct, bits=bits, lastc=lastc, offbit=offbit, Ns=Ns):
+    #print('# label_dct size', len(label_dct), label_dct)
+    for qid, st, ed, std, lab in seqs2path_jit_(seq_bytes, isfasta, kmer, label_dct, bits=bits, lastc=lastc, offbit=offbit, Ns=Ns, rc=rc):
         qid_byte = bytes(qid).decode()[1:]
         strand = std == 1 and '+' or '-'
         print('%s\t%d\t%d\t%s\t%d'%(qid_byte, st, ed, strand, lab))
 
     return label_dct
 
-
 # recover the sequence from the compressed path
 def recover(path, dbg):
     pass
-
 
 # print the manual
 def manual_print():
@@ -1928,6 +1942,7 @@ def manual_print():
     print('  -r: break point of de bruijn graph')
     print('  -R: break point of reduced de bruijn graph')
     print('  -n: length of query sequences for pan-genomic analysis')
+    print('  -c: complementary reverse sequence. 00,01,10,11')
 
 def entry_point(argv):
 
@@ -1941,7 +1956,7 @@ def entry_point(argv):
     #except:
     #    pass
 
-    args = {'-i': '', '-k': '50', '-n': '2**63', '-r': '', '-d': '', '-R': ''}
+    args = {'-i': '', '-k': '50', '-n': '2**63', '-r': '', '-d': '', '-R': '', '-c': '2'}
     N = len(argv)
 
     for i in xrange(1, N):
@@ -1955,7 +1970,7 @@ def entry_point(argv):
             continue
 
     # bkt, the breakpoint
-    qry, kmer, Ns, bkt, dbs, rbk = args['-i'], int(args['-k']), int(eval(args['-n'])), args['-r'], args['-d'], args['-R']
+    qry, kmer, Ns, bkt, dbs, rbk, rc = args['-i'], int(args['-k']), int(eval(args['-n'])), args['-r'], args['-d'], args['-R'], int(args['-c'])
     if not qry:
 
         manual_print()
@@ -2043,7 +2058,9 @@ def entry_point(argv):
 
         # convert dbg to reduced dbg
         print('# build the reduced dBG')
-        rdbg_dict = dbg2rdbg(kmer_dict)
+        #rdbg_dict = dbg2rdbg(kmer_dict, rc=rc)
+        rc0 = ((rc >> 1) == 1)
+        rdbg_dict = dbg2rdbg(kmer_dict, rc=rc0)
         kmer_dict.destroy()
         del kmer_dict
         gc.collect()
@@ -2051,7 +2068,9 @@ def entry_point(argv):
         # convert sequence to path
         print('# find fr')
         #dct = seq2graph(qry, kmer=kmer, bits=5, Ns=Ns, rdbg_dict=rdbg_dict, hashfunc=oakht, brkpt=rbk)
-        dct = seq2graph(qry, kmer=kmer, bits=5, Ns=Ns, rdbg_dict=rdbg_dict, hashfunc=oakht, chunk=chunk, brkpt=rbk)
+        #dct = seq2graph(qry, kmer=kmer, bits=5, Ns=Ns, rdbg_dict=rdbg_dict, hashfunc=oakht, chunk=chunk, brkpt=rbk)
+        rc1 = ((rc & 1) == 1)
+        dct = seq2graph(qry, kmer=kmer, bits=5, Ns=Ns, rdbg_dict=rdbg_dict, hashfunc=oakht, chunk=chunk, brkpt=rbk, rc=rc1)
         #dct = seq2graph_slow(qry, kmer=kmer, bits=5, Ns=Ns, rdbg_dict=rdbg_dict, hashfunc=oakht)
 
     else:
@@ -2060,7 +2079,9 @@ def entry_point(argv):
         print('# build the dBG')
         st = time()
         #kmer_dict = seq2rdbg(qry, kmer, 5, Ns, rec=bkt)
-        kmer_dict = seq2rdbg(qry, kmer, 5, Ns, brkpt=bkt, chunk=chunk)
+        #kmer_dict = seq2rdbg(qry, kmer, 5, Ns, brkpt=bkt, chunk=chunk)
+        rc0 = ((rc >> 1) == 1)
+        kmer_dict = seq2rdbg(qry, kmer, 5, Ns, brkpt=bkt, chunk=chunk, rc=rc0)
         #kmer_dict = seq2rdbg_slow(qry, kmer, 5, Ns, rec=bkt)
         #raise SystemExit()
         print('# finished in', time() - st, 'seconds')
@@ -2089,7 +2110,9 @@ def entry_point(argv):
         # convert sequence to path
         print('# find fr')
         st = time()
-        dct = seq2graph(qry, kmer=kmer, bits=5, Ns=Ns, rdbg_dict=rdbg_dict, hashfunc=oakht, chunk=chunk, brkpt=rbk)
+        #dct = seq2graph(qry, kmer=kmer, bits=5, Ns=Ns, rdbg_dict=rdbg_dict, hashfunc=oakht, chunk=chunk, brkpt=rbk)
+        rc1 = ((rc & 1) == 1)
+        dct = seq2graph(qry, kmer=kmer, bits=5, Ns=Ns, rdbg_dict=rdbg_dict, hashfunc=oakht, chunk=chunk, brkpt=rbk, rc=rc1)
         #dct = seq2graph_slow(qry, kmer=kmer, bits=5, Ns=Ns, rdbg_dict=rdbg_dict, hashfunc=oakht)
         print('# finished in', time() - st, 'seconds')
 
