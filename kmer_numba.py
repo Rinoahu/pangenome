@@ -2062,7 +2062,7 @@ def entry_point(argv):
             print('# build the reduced dBG')
             #rdbg_dict = dbg2rdbg(kmer_dict, rc=rc)
             rc0 = ((rc >> 1) == 1)
-            rdbg_dict = dbg2rdbg(kmer_dict, rc=rc0)
+            rdbg_dict = dbg2rdbg(kmer_dict)
             kmer_dict.destroy()
             del kmer_dict
             gc.collect()
