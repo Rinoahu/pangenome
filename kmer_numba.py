@@ -1940,6 +1940,7 @@ def manual_print():
     print('  -k: kmer length')
     print('  -d: the de bruijn graph')
     print('  -r: break point of de bruijn graph')
+    print('  -D: the reduced de bruijn graph')
     print('  -R: break point of reduced de bruijn graph')
     print('  -n: length of query sequences for pan-genomic analysis')
     print('  -c: complementary reverse sequence. 00,01,10,11')
@@ -1956,7 +1957,7 @@ def entry_point(argv):
     #except:
     #    pass
 
-    args = {'-i': '', '-k': '50', '-n': '2**63', '-r': '', '-d': '', '-R': '', '-c': '2'}
+    args = {'-i': '', '-k': '50', '-n': '2**63', '-r': '', '-d': '', '-R': '', '-D': '', '-c': '2'}
     N = len(argv)
 
     for i in xrange(1, N):
@@ -1970,7 +1971,7 @@ def entry_point(argv):
             continue
 
     # bkt, the breakpoint
-    qry, kmer, Ns, bkt, dbs, rbk, rc = args['-i'], int(args['-k']), int(eval(args['-n'])), args['-r'], args['-d'], args['-R'], int(args['-c'])
+    qry, kmer, Ns, bkt, dbs, rbk, rc, rdb = args['-i'], int(args['-k']), int(eval(args['-n'])), args['-r'], args['-d'], args['-R'], int(args['-c']), args['-D']
     if not qry:
 
         manual_print()
@@ -2047,23 +2048,26 @@ def entry_point(argv):
 
 
     chunk = 2 ** 33
-    if dbs:
+    if dbs or rdb:
         #print('recover from', bkt)
         # convert sequence to path and build the graph
         #dct = seq2graph(qry, kmer=kmer, bits=5, Ns=Ns, saved=dbs, hashfunc=oakht)
 
-        print('load dBG from disk')
-        #offset, kmer_dict = load_on_disk(qry+'_db.npz')
-        offset, kmer_dict = load_on_disk(dbs)
+        if not rdb:
+            print('load dBG from disk')
+            #offset, kmer_dict = load_on_disk(qry+'_db.npz')
+            offset, kmer_dict = load_on_disk(dbs)
 
-        # convert dbg to reduced dbg
-        print('# build the reduced dBG')
-        #rdbg_dict = dbg2rdbg(kmer_dict, rc=rc)
-        rc0 = ((rc >> 1) == 1)
-        rdbg_dict = dbg2rdbg(kmer_dict, rc=rc0)
-        kmer_dict.destroy()
-        del kmer_dict
-        gc.collect()
+            # convert dbg to reduced dbg
+            print('# build the reduced dBG')
+            #rdbg_dict = dbg2rdbg(kmer_dict, rc=rc)
+            rc0 = ((rc >> 1) == 1)
+            rdbg_dict = dbg2rdbg(kmer_dict, rc=rc0)
+            kmer_dict.destroy()
+            del kmer_dict
+            gc.collect()
+        else:
+            offset, rdbg_dict = load_on_disk(rdb)
 
         # convert sequence to path
         print('# find fr')
