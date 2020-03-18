@@ -250,7 +250,8 @@ def dump(clf, fn='./tmp', jit=False, offset=0, ksize=1, vsize=1):
 
     return 0
 
-#@nb.njit
+
+@nb.njit
 def array2dict(keys, values, ksize=1, vsize=1):
     clf = Dict()
     N = min(len(keys) // ksize, len(values) // vsize)
@@ -260,13 +261,15 @@ def array2dict(keys, values, ksize=1, vsize=1):
         ik = int(i * ksize)
         #print('clf', len(clf))
         #key = tuple(map(nb.uint64, keys[ik: int(ik+ksize)]))
-        key = tuple(keys[ik: int(ik+ksize)])
+        #key = tuple(keys[ik: int(ik+ksize)])
+        key =(keys[ik], keys[ik+1], keys[ik+2], keys[ik+3])
 
         iv = int(i * vsize)
-        if vsize == 1:
-            val = values[iv]
-        else:
-            val = values[iv: int(iv+vsize)]
+        #if vsize == 1:
+        #    val = values[iv]
+        #else:
+        #    val = values[iv: int(iv+vsize)]
+        val = values[iv]
 
         clf[key] = val
 
