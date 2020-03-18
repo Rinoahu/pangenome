@@ -2070,7 +2070,7 @@ def entry_point(argv):
             del kmer_dict
             gc.collect()
         else:
-            offset, rdbg_dict = load_on_disk(rdb, jit=True)
+            offset, rdbg_dict = load_on_disk(rdb)
 
         # convert sequence to path
         print('# find fr')
