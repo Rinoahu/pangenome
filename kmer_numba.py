@@ -1835,7 +1835,7 @@ def seqs2path_jit_(seq_bytes, isfasta, kmer, label_dct, bits=5, lastc=lastc, off
 
 
 #def seq2graph(qry, kmer=13, bits=5, Ns=1e6, brkpt='./breakpoint_rdbg.npz', rdbg_dict=None, saved=None, hashfunc=oakht, jit=True, chunk=2**33):
-def seq2graph(qry, kmer=13, bits=5, Ns=1e6, brkpt='./breakpoint_rdbg.npz', rdbg_dict=None, saved=None, hashfunc=oakht, jit=True, chunk=2**33, rc=False):
+def seq2graph(qry, kmer=13, bits=5, Ns=1e6, brkpt='./breakpoint_rdbg.npz', rdbg_dict=None, saved=None, hashfunc=oakht, jit=True, chunk=2**33, rc=False, cluster=True):
 
     kmer = min(max(1, kmer), 27)
     #seq_type = seq_chk(qry)
@@ -1889,7 +1889,12 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, brkpt='./breakpoint_rdbg.npz', rdbg_
     _o.close()
 
     # call the mcl for clustering
-    os.system('mcl %s --abc -I 1.5 -te 8 -o %s.mcl -q x -V all'%(_oname, _oname))
+    if cluster == True:
+        if os.path.isfile('%s.mcl'%_oname):
+            os.system('mcl %s --abc -I 1.5 -te 8 -o %s.mcl -q x -V all'%(_oname, _oname))
+        else:
+            print('# the mcl has been ran')
+    
 
     del rdbg_edge
     del rdbg_dict
