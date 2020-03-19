@@ -1891,10 +1891,10 @@ def seq2graph(qry, kmer=13, bits=5, Ns=1e6, brkpt='./breakpoint_rdbg.npz', rdbg_
     # call the mcl for clustering
     if cluster == True:
         if os.path.isfile('%s.mcl'%_oname):
-            os.system('mcl %s --abc -I 1.5 -te 8 -o %s.mcl -q x -V all'%(_oname, _oname))
-        else:
             print('# the mcl has been ran')
-    
+        else:
+            os.system('mcl %s --abc -I 1.5 -te 8 -o %s.mcl -q x -V all'%(_oname, _oname))
+   
 
     del rdbg_edge
     del rdbg_dict
