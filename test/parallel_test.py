@@ -12,6 +12,7 @@ ncpu = mp.cpu_count()
 def test(hts, n, p=ncpu):
     a = np.random.randint(0, 2**63-1, n)
     step = int(n // p) + 1
+    flag = 0
     for i in prange(p):
         ht = hts[i]
         k, v = np.arange(1), np.arange(1)
@@ -22,6 +23,9 @@ def test(hts, n, p=ncpu):
             ht.push(k, v)
 
         print(i, ht.size)
+        flag+= ht.size
+
+    print('total N', flag)
     return a
 
 ktype=nb.int32
