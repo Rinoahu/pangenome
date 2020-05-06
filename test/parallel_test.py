@@ -4,6 +4,7 @@ sys.path.append('../')
 from kmer_numba import *
 from numba import prange
 import multiprocessing as mp
+import sys
 
 ncpu = mp.cpu_count()
 
@@ -42,21 +43,23 @@ spec['counts'] = nb.uint8[:]
 clf = nb_jitclass(spec)(oakht)
 
 
-p = ncpu
-hts = List()
-dct = clf(capacity=2**20, ksize=1, ktype=ktype, vsize=1, vtype=vtype)
-hts.append(dct)
-for i in range(p-1):
-    dct = clf(capacity=2**20, ksize=1, ktype=ktype, vsize=1, vtype=vtype)
-    hts.append(dct)
-
-
-
-import sys
 try:
     N = int(eval(sys.argv[1]))
 except:
     N = 100
+
+cap = int((N // ncpu) * 1.6)
+
+p = ncpu
+hts = List()
+dct = clf(capacity=cap, ksize=1, ktype=ktype, vsize=1, vtype=vtype)
+hts.append(dct)
+for i in range(p-1):
+    dct = clf(capacity=cap, ksize=1, ktype=ktype, vsize=1, vtype=vtype)
+    hts.append(dct)
+
+
+
 
 print('CPU # is', ncpu)
 out = test(hts, N, ncpu)
