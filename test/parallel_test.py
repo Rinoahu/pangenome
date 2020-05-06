@@ -30,7 +30,7 @@ def test(hts, n, p=ncpu):
     return a
 
 ktype=nb.int32
-vtype=nb.int32
+vtype=nb.int8
 spec = {}
 spec['capacity'] = nb.int64
 spec['load'] = nb.float32
