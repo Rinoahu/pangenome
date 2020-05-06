@@ -3,9 +3,13 @@ import sys
 sys.path.append('../')
 from kmer_numba import *
 from numba import prange
+import multiprocessing as mp
+
+ncpu = mp.cpu_count()
+
 
 @nb.jit(parallel=True)
-def test(hts, n, p=8):
+def test(hts, n, p=ncpu):
     a = np.random.randint(0, 2**63-1, n)
     step = int(n // p) + 1
     for i in prange(p):
