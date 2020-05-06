@@ -48,7 +48,7 @@ try:
 except:
     N = 100
 
-cap = int((N // ncpu) * 1.6)
+cap = int((N // ncpu) * (1/.75) + 1)
 
 p = ncpu
 hts = List()
