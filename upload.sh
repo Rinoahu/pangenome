@@ -1,5 +1,6 @@
 #!/bin/bash
 
+rm -rf __pycache__
 cd ./test
 rm -f pan_genome.fsa* log.* test.fsa_* *.npz __pycache__
 cd ../
