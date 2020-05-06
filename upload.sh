@@ -14,7 +14,7 @@ git config --global user.name Rinoahu
 git remote rm origin
 
 git add -A .
-git commit -m 'seperate numba jitclass version from pure python'
+git commit -m 'fixed the way to import jitclass'
 git remote add origin https://github.com/Rinoahu/pangenome
 
 git pull origin master

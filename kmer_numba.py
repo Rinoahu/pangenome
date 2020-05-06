@@ -65,6 +65,16 @@ except:
     nb = NB()
 
 try:
+    from numba.experimental import jitclass as nb_jitclass
+except:
+    try:
+        from numba import jitclass as nb_jitclass
+    except:
+        nb = NB()
+        nb_jitclass = nb.jitclass
+
+
+try:
     xrange = xrange
 except:
     xrange = range
@@ -1100,7 +1110,9 @@ def init_dict(hashfunc=oakht, capacity=2**20, ksize=1, ktype=nb.uint64, vsize=1,
         spec['values'] = vtype[:]
 
         spec['counts'] = nb.uint8[:]
-        clf = nb.jitclass(spec)(hashfunc)
+        #clf = nb.jitclass(spec)(hashfunc)
+        clf = nb_jitclass(spec)(hashfunc)
+
 
     else:
         clf = hashfunc
