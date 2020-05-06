@@ -38,7 +38,7 @@ spec['counts'] = nb.uint8[:]
 clf = nb_jitclass(spec)(oakht)
 
 
-p = 8
+p = ncpu
 hts = List()
 dct = clf(capacity=2**20, ksize=1, ktype=ktype, vsize=1, vtype=vtype)
 hts.append(dct)
@@ -47,12 +47,13 @@ for i in range(p-1):
     hts.append(dct)
 
 
-#print(clf)
 
 import sys
 try:
     N = int(eval(sys.argv[1]))
 except:
     N = 100
-out = test(hts, N)
+
+print('CPU # is', ncpu)
+out = test(hts, N, ncpu)
 
