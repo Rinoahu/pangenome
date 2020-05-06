@@ -31,7 +31,7 @@ spec['vsize'] = nb.int64
 spec['keys'] = ktype[:]
 spec['values'] = vtype[:]
 spec['counts'] = nb.uint8[:]
-clf = nb.jitclass(spec)(oakht)
+clf = nb_jitclass(spec)(oakht)
 
 
 p = 8
