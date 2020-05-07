@@ -18,9 +18,11 @@ def test(hts, n, a, p=8):
         k, v = np.arange(1), np.arange(1)
         st = i * step
         ed = st + step
+        idx = st
         for j in a[st: ed]:
-            k[0], v[0] = j | i, j
+            k[0], v[0] = idx, j
             ht.push(k, v)
+            idx += 1
 
         print(i, ht.size)
         flag+= ht.size
