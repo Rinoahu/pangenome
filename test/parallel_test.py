@@ -6,12 +6,11 @@ from numba import prange
 import multiprocessing as mp
 import sys
 
-ncpu = mp.cpu_count()
 
 
 @nb.jit(parallel=True)
-def test(hts, n, p=ncpu):
-    a = np.random.randint(0, 2**63-1, n)
+def test(hts, n, a, p=ncpu):
+    #a = np.random.randint(0, 2**63-1, n)
     step = int(n // p) + 1
     flag = 0
     for i in prange(p):
@@ -42,7 +41,6 @@ spec['values'] = vtype[:]
 spec['counts'] = nb.uint8[:]
 clf = nb_jitclass(spec)(oakht)
 
-
 try:
     N = int(eval(sys.argv[1]))
 except:
@@ -50,6 +48,7 @@ except:
 
 cap = int((N // ncpu) * (1/.75) + 1)
 
+ncpu = mp.cpu_count()
 p = ncpu
 hts = List()
 dct = clf(capacity=cap, ksize=1, ktype=ktype, vsize=1, vtype=vtype)
@@ -59,8 +58,8 @@ for i in range(p-1):
     hts.append(dct)
 
 
-
-
 print('CPU # is', ncpu)
-out = test(hts, N, ncpu)
+
+a = np.random.randint(0, 2**31-1, n, dtype='int32')
+out = test(hts, N, a, ncpu)
 
