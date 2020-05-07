@@ -61,6 +61,6 @@ for i in range(p-1):
 
 print('CPU # is', ncpu)
 
-a = np.random.randint(0, 2**31-1, n, dtype='int32')
+a = np.random.randint(0, 2**31-1, N, dtype='int32')
 out = test(hts, N, a, ncpu)
 
