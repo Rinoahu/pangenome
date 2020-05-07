@@ -19,7 +19,7 @@ def test(hts, n, a, p=8):
         st = i * step
         ed = st + step
         for j in a[st: ed]:
-            k[0] = j
+            k[0], v[0] = j | i, j
             ht.push(k, v)
 
         print(i, ht.size)
