@@ -46,10 +46,11 @@ try:
 except:
     N = 100
 
-cap = int((N // ncpu) * (1/.75) + 1)
 
 ncpu = mp.cpu_count()
+cap = int((N // ncpu) * (1/.75) + 1)
 p = ncpu
+
 hts = List()
 dct = clf(capacity=cap, ksize=1, ktype=ktype, vsize=1, vtype=vtype)
 hts.append(dct)
