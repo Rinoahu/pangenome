@@ -9,7 +9,7 @@ import sys
 
 
 @nb.jit(parallel=True)
-def test(hts, n, a, p=ncpu):
+def test(hts, n, a, p=8):
     #a = np.random.randint(0, 2**63-1, n)
     step = int(n // p) + 1
     flag = 0
