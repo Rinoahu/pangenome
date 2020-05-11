@@ -385,7 +385,7 @@ class oakht:
         counts = np.zeros(1, dtype=counts_old.dtype)
         self.keys, self.values, self.counts = keys, values, counts
 
-        del keys_old, values_old, counts_old
+        #del keys_old, values_old, counts_old
         #gc.collect()
 
     # whether key0 == key1
