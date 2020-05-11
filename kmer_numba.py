@@ -1510,8 +1510,8 @@ def rdbg_edge_weight(rdbg_edge, rdbg_dict, seq, kmer, offbit=offbit, bits=5):
 
         k12 = (n0, h0|d0, n1, h1|d1)
 
-    del path_cmpr
-    del visit
+    #del path_cmpr
+    #del visit
     return 0
 
 
