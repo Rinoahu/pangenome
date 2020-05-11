@@ -468,7 +468,7 @@ class oakht:
         self.values = values
         self.counts = counts
 
-        del keys_old, values_old, counts_old
+        #del keys_old, values_old, counts_old
 
         #gc.collect()
 
