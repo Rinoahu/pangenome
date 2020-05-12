@@ -386,6 +386,7 @@ class oakht:
         self.keys, self.values, self.counts = keys, values, counts
 
         #del keys_old, values_old, counts_old
+        keys_old, values_old, counts_old = None, None, None
         #gc.collect()
 
     # whether key0 == key1
@@ -469,7 +470,7 @@ class oakht:
         self.counts = counts
 
         #del keys_old, values_old, counts_old
-
+        keys_old, values_old, counts_old = None, None, None
         #gc.collect()
 
     def resize_disk(self, keys, values, counts):
@@ -513,8 +514,8 @@ class oakht:
         self.values = values
         self.counts = counts
 
-        del keys_old, values_old, counts_old
-
+        #del keys_old, values_old, counts_old
+        keys_old, values_old, counts_old = None, None, None
         #gc.collect()
 
     def pointer(self, key, start=0):
@@ -1511,7 +1512,7 @@ def rdbg_edge_weight(rdbg_edge, rdbg_dict, seq, kmer, offbit=offbit, bits=5):
         k12 = (n0, h0|d0, n1, h1|d1)
 
     #del path_cmpr
-    #path_cmpr.clear()
+    path_cmpr = None
     #del visit
     visit.clear()
     return 0

@@ -8,7 +8,7 @@ pypy=python
 #seq=../../test.fsa
 seq=./test.fsa
 
-$tstime $pypy ../kmer_numba.py -i $seq -k 27 -n 5e8 &> log.txt
+$tstime $pypy ../kmer_numba.py -i $seq -k 5 -n 5e8 &> log.txt
 
 exit 0
 
